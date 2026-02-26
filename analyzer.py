@@ -1,6 +1,9 @@
 import os
 import json
 import anthropic
+from logger import get_logger
+
+log = get_logger(__name__)
 
 # System prompt instructs Claude to act as a senior AWS security engineer
 # and return ONLY valid JSON — no prose, no markdown fences
@@ -43,11 +46,15 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
     """
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
+        log.error("ANTHROPIC_API_KEY not set")
         raise ValueError(
             "ANTHROPIC_API_KEY not set. Export it in your shell or pass it directly."
         )
 
     client = anthropic.Anthropic(api_key=key)
+    finding_id = finding.get("Id", "unknown")
+    severity = finding.get("Severity", {}).get("Label", "UNKNOWN")
+    log.info(f"Analysis started | id={finding_id} severity={severity}")
 
     finding_json = json.dumps(finding, indent=2)
 
@@ -73,15 +80,21 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
                 raw = raw[4:]
             raw = raw.strip()
 
-        return json.loads(raw)
+        result = json.loads(raw)
+        log.info(f"Analysis complete | id={finding_id} priority={result.get('priority')}")
+        return result
 
     except json.JSONDecodeError as e:
+        log.error(f"JSON parse error | id={finding_id} error={e}")
         return {"error": f"Claude returned invalid JSON: {e}", "raw_response": raw}
     except anthropic.AuthenticationError:
+        log.error("Authentication failed — check ANTHROPIC_API_KEY")
         return {"error": "Invalid Anthropic API key. Check your ANTHROPIC_API_KEY."}
     except anthropic.RateLimitError:
+        log.warning(f"Rate limit hit | id={finding_id}")
         return {"error": "Rate limit hit. Wait 60 seconds and try again."}
     except Exception as e:
+        log.error(f"Unexpected error | id={finding_id} error={e}")
         return {"error": f"Unexpected error: {str(e)}"}
 
 
@@ -94,7 +107,6 @@ if __name__ == "__main__":
         sample_file = sys.argv[1]
 
     print(f"Testing analyzer with: {sample_file}")
-    print("-" * 60)
 
     with open(sample_file) as f:
         finding = json.load(f)

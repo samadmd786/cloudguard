@@ -8,3 +8,6 @@ chroma_db/
 *.db
 .DS_Store
 cloudguard-build-plan.txt
+logs/
+result.json
+
