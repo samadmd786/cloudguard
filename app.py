@@ -3,6 +3,8 @@ import json
 from datetime import datetime
 import streamlit as st
 from analyzer import analyze_finding
+from agent_analyzer import analyze_with_agent
+from aws_connector import test_connection, get_findings, get_summary
 from logger import get_logger
 
 log = get_logger(__name__)
@@ -326,102 +328,202 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-finding = None
-finding_source = None
+tab1, tab2 = st.tabs(["💾 Manual Input", "☁️ Live AWS Findings"])
 
-# Sample selector
-if input_method == "📂 Sample finding":
-    samples = list_samples()
-    if not samples:
-        st.warning("No sample findings found in sample_findings/ directory.")
-    else:
-        labels = {
-            "s3_public.json":    "🔴 CRITICAL — S3 bucket publicly readable",
-            "root_keys.json":    "🔴 CRITICAL — Root account has active access keys",
-            "ssh_open.json":     "🟠 HIGH — SSH open to the internet (0.0.0.0/0)",
-            "mfa_disabled.json": "🟠 HIGH — MFA not enabled for IAM user",
-            "cloudtrail.json":   "🟡 MEDIUM — CloudTrail logging disabled",
-        }
-        choice = st.selectbox(
-            "Select a sample finding",
-            samples,
-            format_func=lambda f: labels.get(f, f),
-        )
-        if choice:
-            with open(f"{SAMPLE_DIR}/{choice}") as fp:
-                finding = json.load(fp)
-            finding_source = choice
+with tab1:
+    finding = None
+    finding_source = None
 
-# Paste JSON
-elif input_method == "📋 Paste JSON":
-    pasted = st.text_area(
-        "Paste your Security Hub finding JSON here",
-        height=280,
-        placeholder='{ "SchemaVersion": "2018-10-08", ... }',
-    )
-    if pasted.strip():
-        try:
-            finding = json.loads(pasted)
-            finding_source = "pasted JSON"
-        except json.JSONDecodeError as e:
-            st.error(f"Invalid JSON: {e}")
-
-# File upload
-elif input_method == "📁 Upload .json file":
-    uploaded = st.file_uploader("Upload a Security Hub finding .json file", type="json")
-    if uploaded:
-        try:
-            finding = json.load(uploaded)
-            finding_source = uploaded.name
-        except Exception as e:
-            st.error(f"Could not read file: {e}")
-
-if finding:
-    left, right = st.columns([1, 1.6], gap="large")
-
-    with left:
-        st.markdown('<div class="section-header">Raw Finding</div>', unsafe_allow_html=True)
-        st.json(finding, expanded=False)
-
-    with right:
-        st.markdown('<div class="section-header">Analysis</div>', unsafe_allow_html=True)
-
-        mode_prefix = "preview" if preview_mode else "live"
-        cache_key = f"{mode_prefix}_{finding_source}_{finding.get('Id','')}"
-
-        if cache_key in st.session_state:
-            render_analysis(finding, st.session_state[cache_key])
-            st.caption("⚡ Cached — no API call")
+    # Sample selector
+    if input_method == "📂 Sample finding":
+        samples = list_samples()
+        if not samples:
+            st.warning("No sample findings found in sample_findings/ directory.")
         else:
-            analyze_clicked = st.button("🔍 Analyze Finding", type="primary", use_container_width=True)
+            labels = {
+                "s3_public.json":    "🔴 CRITICAL — S3 bucket publicly readable",
+                "root_keys.json":    "🔴 CRITICAL — Root account has active access keys",
+                "ssh_open.json":     "🟠 HIGH — SSH open to the internet (0.0.0.0/0)",
+                "mfa_disabled.json": "🟠 HIGH — MFA not enabled for IAM user",
+                "cloudtrail.json":   "🟡 MEDIUM — CloudTrail logging disabled",
+            }
+            choice = st.selectbox(
+                "Select a sample finding",
+                samples,
+                format_func=lambda f: labels.get(f, f),
+            )
+            if choice:
+                with open(f"{SAMPLE_DIR}/{choice}") as fp:
+                    finding = json.load(fp)
+                finding_source = choice
 
-            if analyze_clicked:
-                if preview_mode:
-                    with open("tests/mock_response.json") as f:
-                        result = json.load(f)
-                    add_activity(f"Preview: {finding.get('Title','Finding')[:50]}")
-                    st.session_state[cache_key] = result
-                    st.rerun()
-                elif not sidebar_key:
-                    st.error("No API key found. Set ANTHROPIC_API_KEY or enter in the sidebar.")
-                else:
-                    with st.spinner("Analyzing finding..."):
-                        result = analyze_finding(finding, api_key=sidebar_key)
-                    if "error" in result:
-                        msg = result['error']
-                        log.error(f"Analysis error shown in UI: {msg}")
-                        add_activity(msg, level="error")
-                        st.error(f"Analysis failed: {msg}")
-                    else:
-                        add_activity(f"Analyzed: {finding.get('Title','Finding')[:50]}")
+    # Paste JSON
+    elif input_method == "📋 Paste JSON":
+        pasted = st.text_area(
+            "Paste your Security Hub finding JSON here",
+            height=280,
+            placeholder='{ "SchemaVersion": "2018-10-08", ... }',
+        )
+        if pasted.strip():
+            try:
+                finding = json.loads(pasted)
+                finding_source = "pasted JSON"
+            except json.JSONDecodeError as e:
+                st.error(f"Invalid JSON: {e}")
+
+    # File upload
+    elif input_method == "📁 Upload .json file":
+        uploaded = st.file_uploader("Upload a Security Hub finding .json file", type="json")
+        if uploaded:
+            try:
+                finding = json.load(uploaded)
+                finding_source = uploaded.name
+            except Exception as e:
+                st.error(f"Could not read file: {e}")
+
+    if finding:
+        left, right = st.columns([1, 1.6], gap="large")
+
+        with left:
+            st.markdown('<div class="section-header">Raw Finding</div>', unsafe_allow_html=True)
+            st.json(finding, expanded=False)
+
+        with right:
+            st.markdown('<div class="section-header">Analysis</div>', unsafe_allow_html=True)
+
+            mode_prefix = "preview" if preview_mode else "live"
+            cache_key = f"{mode_prefix}_{finding_source}_{finding.get('Id','')}"
+
+            if cache_key in st.session_state:
+                render_analysis(finding, st.session_state[cache_key])
+                st.caption("⚡ Cached — no API call")
+            else:
+                analyze_clicked = st.button("🔍 Analyze Finding", type="primary", use_container_width=True)
+
+                if analyze_clicked:
+                    if preview_mode:
+                        with open("tests/mock_response.json") as f:
+                            result = json.load(f)
+                        add_activity(f"Preview: {finding.get('Title','Finding')[:50]}")
                         st.session_state[cache_key] = result
                         st.rerun()
+                    elif not sidebar_key:
+                        st.error("No API key found. Set ANTHROPIC_API_KEY or enter in the sidebar.")
+                    else:
+                        with st.spinner("Analyzing finding..."):
+                            result = analyze_finding(finding, api_key=sidebar_key)
+                        if "error" in result:
+                            msg = result['error']
+                            log.error(f"Analysis error shown in UI: {msg}")
+                            add_activity(msg, level="error")
+                            st.error(f"Analysis failed: {msg}")
+                        else:
+                            add_activity(f"Analyzed: {finding.get('Title','Finding')[:50]}")
+                            st.session_state[cache_key] = result
+                            st.rerun()
+    else:
+        st.markdown("""
+        <div style="text-align:center; padding: 60px 20px;">
+          <div style="font-size: 3rem; margin-bottom: 16px;">🛡️</div>
+          <div style="font-size: 1.1rem; font-weight: 600; color: #475569;">Select a finding to get started</div>
+          <div style="font-size: 0.88rem; margin-top: 8px; color: #334155;">Choose from the sidebar or paste your own JSON</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-else:
-    st.markdown("""
-    <div style="text-align:center; padding: 60px 20px; color: #334155;">
-      <div style="font-size: 3rem; margin-bottom: 16px;">🛡️</div>
-      <div style="font-size: 1.1rem; font-weight: 600; color: #475569;">Select a finding to get started</div>
-      <div style="font-size: 0.88rem; margin-top: 8px;">Choose from the sidebar or paste your own JSON</div>
-    </div>
-    """, unsafe_allow_html=True)
+
+with tab2:
+    st.markdown('<div class="section-header">Live AWS Security Hub</div>', unsafe_allow_html=True)
+
+    aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+    aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+
+    if not aws_key or not aws_secret:
+        st.warning("⚠️ AWS credentials not found. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_DEFAULT_REGION in your environment or Streamlit secrets.")
+    else:
+        # Connection status
+        if "aws_conn" not in st.session_state:
+            with st.spinner("Connecting to AWS..."):
+                st.session_state["aws_conn"] = test_connection(aws_region)
+
+        conn = st.session_state["aws_conn"]
+        if not conn["ok"]:
+            st.error(f"AWS connection failed: {conn['error']}")
+        else:
+            st.success(f"✓ Connected | Account: {conn['account_id']} | Region: {conn['region']}")
+
+            # Controls row
+            ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([2, 2, 1])
+            with ctrl_col1:
+                sev_filter = st.multiselect(
+                    "Severity filter",
+                    ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+                    default=["CRITICAL", "HIGH"],
+                )
+            with ctrl_col2:
+                max_results = st.slider("Max findings", 5, 100, 25)
+            with ctrl_col3:
+                refresh = st.button("🔄 Refresh", use_container_width=True)
+
+            if refresh:
+                st.session_state.pop("live_findings", None)
+                st.session_state.pop("aws_summary", None)
+
+            # Fetch findings
+            if "live_findings" not in st.session_state:
+                with st.spinner("Fetching findings from Security Hub..."):
+                    st.session_state["live_findings"] = get_findings(
+                        severity_filter=sev_filter or None,
+                        max_results=max_results,
+                        region=aws_region,
+                    )
+                    st.session_state["aws_summary"] = get_summary(aws_region)
+
+            findings = st.session_state.get("live_findings", [])
+            summary = st.session_state.get("aws_summary", {})
+
+            # Summary metric cards
+            st.markdown('<div class="section-header">Posture Overview</div>', unsafe_allow_html=True)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("🔴 Critical", summary.get("CRITICAL", 0))
+            m2.metric("🟠 High", summary.get("HIGH", 0))
+            m3.metric("🟡 Medium", summary.get("MEDIUM", 0))
+            m4.metric("🟢 Low", summary.get("LOW", 0))
+
+            if not findings:
+                st.info("No findings match your current filter.")
+            else:
+                st.markdown(f'<div class="section-header">{len(findings)} Findings</div>', unsafe_allow_html=True)
+
+                SEV_COLOR = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
+                for idx, f in enumerate(findings):
+                    sev = f.get("Severity", {}).get("Label", "UNKNOWN")
+                    title = f.get("Title", "Unknown")
+                    resource = (f.get("Resources") or [{}])[0].get("Id", "—")[-60:]
+                    fid = f.get("Id", str(idx))
+
+                    with st.expander(f"{SEV_COLOR.get(sev, '')} {sev} — {title}", expanded=False):
+                        st.caption(f"Resource: `{resource}`")
+                        cache_key = f"live_{fid}"
+
+                        if cache_key in st.session_state:
+                            render_analysis(f, st.session_state[cache_key])
+                            st.caption("⚡ Cached")
+                        else:
+                            use_agent = sev in ("CRITICAL", "HIGH")
+                            label = "🤖 Agent Analyze" if use_agent else "🔍 Analyze"
+                            if st.button(label, key=f"btn_{idx}", type="primary"):
+                                if not sidebar_key:
+                                    st.error("No API key in sidebar.")
+                                else:
+                                    tip = "Running agent with CVE + compliance tools..." if use_agent else "Analyzing..."
+                                    with st.spinner(tip):
+                                        fn = analyze_with_agent if use_agent else analyze_finding
+                                        result = fn(f, api_key=sidebar_key)
+                                    if "error" in result:
+                                        add_activity(result["error"], level="error")
+                                        st.error(result["error"])
+                                    else:
+                                        add_activity(f"{'Agent' if use_agent else 'Analyzed'}: {title[:40]}")
+                                        st.session_state[cache_key] = result
+                                        st.rerun()
