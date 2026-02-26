@@ -1,4 +1,3 @@
-import os
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from logger import get_logger
@@ -6,37 +5,31 @@ from logger import get_logger
 log = get_logger(__name__)
 
 
-def get_client(region: str = None):
-    """Build a Security Hub boto3 client from environment credentials."""
+def get_client(key_id: str, secret: str, region: str = "us-east-1"):
+    """Build a Security Hub boto3 client from explicit credentials."""
     return boto3.client(
         "securityhub",
-        aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-        aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-        region_name=region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+        aws_access_key_id=key_id,
+        aws_secret_access_key=secret,
+        region_name=region,
     )
 
 
-def test_connection(region: str = None) -> dict:
+def test_connection(key_id: str, secret: str, region: str = "us-east-1") -> dict:
     """
     Verify AWS credentials and Security Hub access.
     Returns {"ok": True, "account_id": "...", "region": "..."} on success
     or {"ok": False, "error": "..."} on failure.
     """
     try:
-        client = get_client(region)
-        hub = client.describe_hub()
-        sts = boto3.client(
-            "sts",
-            aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
-            region_name=region or os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
-        )
-        identity = sts.get_caller_identity()
-        account_id = identity.get("Account", "unknown")
-        log.info(f"AWS connection OK | account={account_id} region={client.meta.region_name}")
-        return {"ok": True, "account_id": account_id, "region": client.meta.region_name}
+        client = get_client(key_id, secret, region)
+        client.describe_hub()
+        sts = boto3.client("sts", aws_access_key_id=key_id, aws_secret_access_key=secret, region_name=region)
+        account_id = sts.get_caller_identity().get("Account", "unknown")
+        log.info(f"AWS connection OK | account={account_id} region={region}")
+        return {"ok": True, "account_id": account_id, "region": region}
     except NoCredentialsError:
-        return {"ok": False, "error": "AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY."}
+        return {"ok": False, "error": "Invalid or missing AWS credentials."}
     except ClientError as e:
         code = e.response["Error"]["Code"]
         if code in ("InvalidClientTokenId", "AuthFailure"):
@@ -48,15 +41,11 @@ def test_connection(region: str = None) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def get_findings(severity_filter: list = None, max_results: int = 50, region: str = None) -> list[dict]:
-    """
-    Pull active, failed findings from Security Hub.
-    severity_filter: list of labels e.g. ["CRITICAL", "HIGH"]
-    Returns a list of normalized finding dicts.
-    """
+def get_findings(key_id: str, secret: str, severity_filter: list = None,
+                 max_results: int = 50, region: str = "us-east-1") -> list[dict]:
+    """Pull active, failed findings from Security Hub."""
     try:
-        client = get_client(region)
-
+        client = get_client(key_id, secret, region)
         filters = {
             "RecordState": [{"Value": "ACTIVE", "Comparison": "EQUALS"}],
             "ComplianceStatus": [{"Value": "FAILED", "Comparison": "EQUALS"}],
@@ -76,11 +65,11 @@ def get_findings(severity_filter: list = None, max_results: int = 50, region: st
             if len(findings) >= max_results:
                 break
 
-        log.info(f"Fetched {len(findings)} findings from Security Hub")
+        log.info(f"Fetched {len(findings)} findings | account session")
         return findings
 
     except NoCredentialsError:
-        log.error("AWS credentials missing when fetching findings")
+        log.error("Missing credentials when fetching findings")
         return []
     except ClientError as e:
         log.error(f"ClientError fetching findings: {e.response['Error']['Message']}")
@@ -90,9 +79,9 @@ def get_findings(severity_filter: list = None, max_results: int = 50, region: st
         return []
 
 
-def get_summary(region: str = None) -> dict:
+def get_summary(key_id: str, secret: str, region: str = "us-east-1") -> dict:
     """Return finding counts grouped by severity for the dashboard header."""
-    all_findings = get_findings(max_results=200, region=region)
+    all_findings = get_findings(key_id, secret, max_results=200, region=region)
     summary = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "total": 0}
     for f in all_findings:
         sev = f.get("Severity", {}).get("Label", "")

@@ -2,10 +2,20 @@ import os
 import json
 from datetime import datetime
 import streamlit as st
+from dotenv import load_dotenv
 from analyzer import analyze_finding
 from agent_analyzer import analyze_with_agent
 from aws_connector import test_connection, get_findings, get_summary
 from logger import get_logger
+
+load_dotenv(override=False)  # os.environ always wins over .env
+
+# Strip .env placeholder values so they don't block real credentials
+_PLACEHOLDER_MARKERS = ("your-", "your_", "<", "example", "changeme", "replace")
+for _var in ("ANTHROPIC_API_KEY", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"):
+    _val = os.environ.get(_var, "")
+    if any(_val.lower().startswith(m) for m in _PLACEHOLDER_MARKERS):
+        os.environ.pop(_var, None)
 
 log = get_logger(__name__)
 
@@ -295,6 +305,18 @@ with st.sidebar:
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+    # AWS credentials — always per-session, never from shared server env
+    with st.expander("☁️ AWS Credentials", expanded=not bool(st.session_state.get("aws_key_id"))):
+        st.caption("Enter your own AWS credentials. These are never stored or logged.")
+        aws_key_id = st.text_input("Access Key ID", placeholder="AKIA...", type="password", key="aws_key_id")
+        aws_secret = st.text_input("Secret Access Key", placeholder="...", type="password", key="aws_secret_key")
+        aws_region = st.text_input("Region", value=st.session_state.get("aws_region_val", "us-east-1"), key="aws_region_val")
+        if aws_key_id and aws_secret:
+            st.success("AWS credentials set ✓")
+
+
+    st.markdown("<br>", unsafe_allow_html=True)
     input_method = st.radio(
         "Input method",
         ["📂 Sample finding", "📋 Paste JSON", "📁 Upload .json file"],
@@ -320,6 +342,7 @@ with st.sidebar:
             if st.button("Clear", key="clear_activity"):
                 st.session_state["activity"] = []
                 st.rerun()
+
 
 st.markdown("""
 <div class="cg-header">
@@ -434,19 +457,20 @@ with tab1:
 with tab2:
     st.markdown('<div class="section-header">Live AWS Security Hub</div>', unsafe_allow_html=True)
 
-    aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
-    aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
-    aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+    aws_key = st.session_state.get("aws_key_id", "")
+    aws_secret = st.session_state.get("aws_secret_key", "")
+    aws_region = st.session_state.get("aws_region_val", "us-east-1")
 
     if not aws_key or not aws_secret:
-        st.warning("⚠️ AWS credentials not found. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_DEFAULT_REGION in your environment or Streamlit secrets.")
+        st.warning("⚠️ Enter your AWS credentials in the sidebar to connect to Security Hub.")
     else:
-        # Connection status
-        if "aws_conn" not in st.session_state:
+        # Connection status — invalidate cache if credentials changed
+        conn_cache_key = f"aws_conn_{aws_key[:8]}"
+        if conn_cache_key not in st.session_state:
             with st.spinner("Connecting to AWS..."):
-                st.session_state["aws_conn"] = test_connection(aws_region)
+                st.session_state[conn_cache_key] = test_connection(aws_key, aws_secret, aws_region)
 
-        conn = st.session_state["aws_conn"]
+        conn = st.session_state[conn_cache_key]
         if not conn["ok"]:
             st.error(f"AWS connection failed: {conn['error']}")
         else:
@@ -473,11 +497,13 @@ with tab2:
             if "live_findings" not in st.session_state:
                 with st.spinner("Fetching findings from Security Hub..."):
                     st.session_state["live_findings"] = get_findings(
+                        aws_key, aws_secret,
                         severity_filter=sev_filter or None,
                         max_results=max_results,
                         region=aws_region,
                     )
-                    st.session_state["aws_summary"] = get_summary(aws_region)
+                    st.session_state["aws_summary"] = get_summary(aws_key, aws_secret, aws_region)
+
 
             findings = st.session_state.get("live_findings", [])
             summary = st.session_state.get("aws_summary", {})
