@@ -32,16 +32,21 @@ def get_logger(name: str) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Console handler
+    # Console handler — always works
     console = logging.StreamHandler(sys.stdout)
     console.setFormatter(fmt)
     logger.addHandler(console)
 
-    # Rotating file handler — max 5MB per file, keep 3 backups
-    file_handler = RotatingFileHandler(
-        LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3
-    )
-    file_handler.setFormatter(fmt)
-    logger.addHandler(file_handler)
+    # Rotating file handler — optional, skipped if filesystem is read-only (e.g. Streamlit Cloud)
+    try:
+        os.makedirs(LOG_DIR, exist_ok=True)
+        file_handler = RotatingFileHandler(
+            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3
+        )
+        file_handler.setFormatter(fmt)
+        logger.addHandler(file_handler)
+    except OSError:
+        logger.debug("Log file unavailable — console logging only")
 
     return logger
+
