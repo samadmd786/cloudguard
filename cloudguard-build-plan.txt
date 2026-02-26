@@ -1,0 +1,756 @@
+================================================================================
+CLOUDGUARD AI — FULL BUILD PLAN
+AWS Misconfiguration Explainer | MVP 1 + MVP 2
+Architecture by: Senior Software Architect
+================================================================================
+
+IMPORTANT NOTES BEFORE YOU START
+──────────────────────────────────
+- Never hardcode API keys, passwords, or AWS credentials anywhere in code
+- All secrets go in a .env file which is ALWAYS in .gitignore
+- AWS free tier + Anthropic starter credits = near zero cost during development
+- This plan assumes you are starting from zero — no AWS account, no code
+
+
+================================================================================
+SECTION 1 — COST BREAKDOWN (READ THIS FIRST)
+================================================================================
+
+Here is exactly what this project will cost you at each stage.
+
+MVP 1 COSTS
+───────────
+  Anthropic Claude API
+    - Claude Sonnet 4: ~$0.003 per analysis (input + output tokens combined)
+    - Testing 100 times during development: ~$0.30 total
+    - New Anthropic accounts get $5 free credits — MVP 1 costs you nothing
+    - URL: console.anthropic.com
+
+  Streamlit Cloud hosting
+    - Free forever for public apps
+    - URL: share.streamlit.io
+
+  GitHub
+    - Free
+
+  TOTAL MVP 1 COST: $0 (covered by free credits)
+
+MVP 2 COSTS
+───────────
+  AWS Account (Free Tier)
+    - AWS Security Hub: FREE for the first 30 days, then $0.0010 per finding
+    - For a dev/test account with ~50 findings: less than $0.10/month after trial
+    - EC2, S3 etc: you are NOT running any infrastructure, just reading findings
+    - Free tier is more than enough
+
+  Anthropic Claude API (agent mode)
+    - Agent mode uses 2-4 Claude calls per finding instead of 1
+    - ~$0.01-0.02 per finding in agent mode
+    - Still negligible for development and demos
+
+  NVD API (CVE lookup)
+    - Completely free, no account needed
+
+  TOTAL MVP 2 COST: ~$0-2 during development
+
+COST PROTECTION MEASURES (built into the code)
+───────────────────────────────────────────────
+  1. Sample findings don't trigger API calls until user clicks Analyze
+  2. MEDIUM and LOW findings use simple mode (1 API call, not agent mode)
+  3. Only CRITICAL and HIGH findings use agent mode (2-4 calls)
+  4. Set a hard spending limit in Anthropic console: $10/month max
+  5. Set a hard spending limit in AWS console: $5/month budget alert
+  6. ChromaDB runs locally — no cloud database costs
+
+
+================================================================================
+SECTION 2 — SECURITY RULES (FOLLOW THESE ALWAYS)
+================================================================================
+
+RULE 1: NEVER HARDCODE SECRETS
+  Bad:   api_key = "sk-ant-abc123..."
+  Bad:   aws_key = "AKIAIOSFODNN7EXAMPLE"
+  Good:  api_key = os.environ.get("ANTHROPIC_API_KEY")
+  Good:  Load from .env file using python-dotenv
+
+RULE 2: ALWAYS USE .gitignore
+  The very first file you create is .gitignore
+  It must contain these lines before you ever run git add:
+    .env
+    .env.local
+    __pycache__/
+    *.pyc
+    .chroma/
+    chroma_db/
+    *.db
+
+RULE 3: .env FILE FORMAT
+  Create a file called exactly: .env
+  Contents:
+    ANTHROPIC_API_KEY=sk-ant-your-key-here
+    AWS_ACCESS_KEY_ID=your-key-here
+    AWS_SECRET_ACCESS_KEY=your-secret-here
+    AWS_DEFAULT_REGION=us-east-1
+
+RULE 4: AWS CREDENTIALS — USE LEAST PRIVILEGE
+  Do NOT use your AWS root account credentials in the app
+  Create a dedicated IAM user with ONLY these permissions:
+    - securityhub:GetFindings
+    - securityhub:DescribeHub
+    - securityhub:ListEnabledProductsForImport
+  Nothing else. If these credentials leak, attacker can only READ findings.
+  They cannot delete resources, spin up EC2, or run up your bill.
+
+RULE 5: STREAMLIT CLOUD SECRETS
+  When deploying to Streamlit Cloud, do NOT upload your .env file
+  Instead use Streamlit's built-in secrets manager:
+    - Go to your app dashboard on share.streamlit.io
+    - Click Settings → Secrets
+    - Paste your key=value pairs there
+  Access in code: st.secrets["ANTHROPIC_API_KEY"]
+  With fallback: os.environ.get("ANTHROPIC_API_KEY", st.secrets.get("ANTHROPIC_API_KEY"))
+
+RULE 6: ROTATE KEYS IF EVER EXPOSED
+  If you accidentally commit a key to GitHub:
+    1. Immediately revoke it in Anthropic/AWS console
+    2. Generate a new key
+    3. Use git history rewriting or contact GitHub support
+    GitHub scans for exposed keys automatically but do not rely on this
+
+
+================================================================================
+SECTION 3 — ONE-TIME SETUP (DO THIS BEFORE ANYTHING ELSE)
+================================================================================
+
+STEP 1: Install Python
+  - Download Python 3.11 or higher from python.org
+  - Verify: python --version
+
+STEP 2: Install Git
+  - Download from git-scm.com
+  - Configure: git config --global user.name "Your Name"
+  - Configure: git config --global user.email "your@email.com"
+
+STEP 3: Create GitHub account
+  - Go to github.com and sign up (free)
+  - Create a new repository called: cloudguard-ai
+  - Set it to Public (required for free Streamlit Cloud deployment)
+  - Do NOT add README or any files yet — start empty
+
+STEP 4: Create Anthropic account
+  - Go to console.anthropic.com
+  - Sign up and verify email
+  - Go to API Keys → Create new key
+  - Copy the key immediately (you cannot see it again)
+  - Set a usage limit: Go to Billing → Usage Limits → Set $10/month hard limit
+  - Save key for later — do NOT paste it anywhere yet
+
+STEP 5: Create AWS account (for MVP 2 only, skip for MVP 1)
+  - Go to aws.amazon.com → Create account
+  - You need a credit card but you will not be charged during free tier
+  - Set a billing alert immediately:
+      Go to Billing → Budgets → Create Budget
+      Set alert at $5/month
+      Add your email
+  - Enable MFA on root account immediately:
+      Go to IAM → Security credentials → Enable MFA
+  - Do NOT use root account credentials in the app (see Rule 4 above)
+
+
+================================================================================
+SECTION 4 — MVP 1 BUILD PLAN
+================================================================================
+
+GOAL
+────
+A Streamlit web app where a user pastes or uploads an AWS Security Hub
+finding JSON and receives a full AI-generated security report from Claude.
+Deployed publicly on Streamlit Cloud.
+
+ARCHITECTURE
+────────────
+
+  [User Browser]
+       │
+       ▼
+  [Streamlit UI — app.py]
+       │  Finding JSON
+       ▼
+  [analyzer.py]
+       │  Builds prompt + calls API
+       ▼
+  [Claude API — Anthropic]
+       │  Returns structured JSON
+       ▼
+  [Streamlit UI]
+       └── Renders: explanation · impact · fix steps · compliance
+
+FILE STRUCTURE
+──────────────
+
+  cloudguard/
+  ├── .gitignore              ← CREATE THIS FIRST
+  ├── .env                    ← secrets, never committed
+  ├── app.py                  ← Streamlit UI
+  ├── analyzer.py             ← Claude API logic
+  ├── requirements.txt        ← Python dependencies
+  ├── README.md
+  └── sample_findings/
+      ├── s3_public.json
+      ├── root_keys.json
+      ├── ssh_open.json
+      ├── cloudtrail.json
+      └── mfa_disabled.json
+
+DEPENDENCIES (requirements.txt)
+────────────────────────────────
+  streamlit>=1.32.0
+  anthropic>=0.25.0
+  python-dotenv>=1.0.0
+
+BUILD STEPS
+───────────
+
+  STEP 1 — Project setup
+
+    mkdir cloudguard
+    cd cloudguard
+    python -m venv venv
+    source venv/bin/activate        (Mac/Linux)
+    venv\Scripts\activate           (Windows)
+    pip install streamlit anthropic python-dotenv
+
+    Create .gitignore FIRST with these contents:
+      .env
+      .env.local
+      __pycache__/
+      *.pyc
+      venv/
+      .chroma/
+      chroma_db/
+
+    Create .env file:
+      ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+  STEP 2 — Sample findings
+
+    Create the sample_findings/ folder
+    Create 5 JSON files using real AWS Security Hub schema
+    Findings to include:
+      s3_public.json     — S3 bucket publicly accessible (CRITICAL)
+      root_keys.json     — Root account has active access keys (CRITICAL)
+      ssh_open.json      — Security group allows SSH from 0.0.0.0/0 (HIGH)
+      mfa_disabled.json  — MFA not enabled for IAM user (HIGH)
+      cloudtrail.json    — CloudTrail logging disabled (MEDIUM)
+
+    Each file must use real Security Hub JSON schema fields:
+      SchemaVersion, Id, Severity.Label, Title, Description,
+      Resources, Compliance.Status, Compliance.RelatedRequirements
+
+  STEP 3 — Analyzer (analyzer.py)
+
+    Load API key from environment, never hardcode:
+      from dotenv import load_dotenv
+      load_dotenv()
+      api_key = os.environ.get("ANTHROPIC_API_KEY")
+      if not api_key:
+          raise ValueError("ANTHROPIC_API_KEY not set in environment")
+
+    Write system prompt that instructs Claude to:
+      - Act as a senior AWS security engineer
+      - Return ONLY valid JSON, no other text
+      - Include these exact fields in response:
+          plain_english       (2-3 sentences, reference actual resource name)
+          why_it_matters      (real-world risk if exploited)
+          business_impact     (object with data_risk, financial_risk, compliance_risk)
+          fix_steps           (array of objects with step and cli_command fields)
+          compliance_frameworks (array of specific control IDs)
+          priority            (one of: Immediate, Soon, Planned)
+          tldr                (one sentence for non-technical stakeholders)
+
+    Model to use: claude-sonnet-4-6
+    Max tokens: 1500 (keeps cost low, enough for full analysis)
+
+    Parse JSON response and handle errors gracefully:
+      - Catch JSON parse errors
+      - Catch API authentication errors
+      - Catch rate limit errors
+      - Return error message to UI rather than crashing
+
+  STEP 4 — Streamlit UI (app.py)
+
+    Load secrets safely:
+      import os
+      from dotenv import load_dotenv
+      load_dotenv()
+
+      def get_api_key():
+          # Try environment first, then Streamlit secrets, then sidebar input
+          key = os.environ.get("ANTHROPIC_API_KEY")
+          if not key:
+              try:
+                  key = st.secrets["ANTHROPIC_API_KEY"]
+              except:
+                  pass
+          return key
+
+    Layout:
+      - Page config: wide layout, custom title and icon
+      - Sidebar: API key input (password type), input method selector
+      - Input methods: sample selector, paste JSON, upload .json file
+      - Main area: two columns
+          Left column:  raw JSON viewer
+          Right column: AI analysis results
+
+    Analysis results should render:
+      - Severity badge (color coded: red/orange/yellow/green)
+      - TL;DR box (highlighted, prominent)
+      - Priority indicator
+      - Plain English explanation
+      - Business impact (3 cards: data, financial, compliance)
+      - Fix steps (numbered, with CLI commands in code blocks)
+      - Compliance tags
+
+    Cost control in UI:
+      - Only call analyzer when user clicks "Analyze" button
+      - Show a spinner during API call
+      - Cache results in st.session_state so re-rendering doesn't re-call API
+      - Show approximate cost per analysis ($0.003) near the button
+
+  STEP 5 — Test locally
+
+    streamlit run app.py
+
+    Test checklist:
+      [ ] All 5 sample findings load correctly
+      [ ] JSON paste input works
+      [ ] File upload works
+      [ ] Analysis returns valid structured response
+      [ ] Error handling works (try with invalid JSON)
+      [ ] No API key visible anywhere in the UI or logs
+      [ ] .env file is not tracked by git (run: git status to verify)
+
+  STEP 6 — Deploy to Streamlit Cloud
+
+    git init
+    git add .
+    git status              ← verify .env is NOT in the list
+    git commit -m "Initial commit"
+    git remote add origin https://github.com/yourusername/cloudguard-ai.git
+    git push -u origin main
+
+    Go to share.streamlit.io:
+      - Sign in with GitHub
+      - New app → select your repo → select app.py
+      - Go to Advanced Settings → Secrets
+      - Add: ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+      - Deploy
+
+    Your app is now live at: yourusername-cloudguard-ai.streamlit.app
+
+ESTIMATED TIME: 1-2 days
+ESTIMATED COST: $0 (covered by Anthropic free credits)
+
+
+================================================================================
+SECTION 5 — MVP 2 BUILD PLAN
+================================================================================
+
+GOAL
+────
+Connect to a real AWS account and pull live Security Hub findings automatically.
+Use Claude in agent mode to autonomously investigate high-severity findings
+using external tools before generating the report.
+
+ARCHITECTURE
+────────────
+
+  [AWS Account]
+       │  boto3 SDK
+       ▼
+  [aws_connector.py]
+       │  Normalized findings list
+       ▼
+  [Streamlit Dashboard — app.py]
+       │  User selects finding
+       ▼
+  [agent_analyzer.py]
+       │
+       ├── Severity router
+       │     MEDIUM/LOW  ──► [analyzer.py] (MVP 1, single call, cheap)
+       │     HIGH/CRITICAL ► [Agent loop]
+       │
+       ▼ (agent loop)
+  [Claude Tool Use API]
+       │
+       ├── Tool decision: CVE Lookup?
+       │       └── [tools.py] → NVD free API → returns CVEs
+       │
+       ├── Tool decision: AWS Docs?
+       │       └── [tools.py] → fetch AWS docs page → returns remediation text
+       │
+       └── Tool decision: Compliance Check?
+               └── [tools.py] → local lookup table → returns control IDs
+       │
+       │  All tool results sent back to Claude
+       ▼
+  [Claude synthesizes final report]
+       │
+       ▼
+  [Streamlit UI — renders enriched report]
+
+FILE STRUCTURE
+──────────────
+
+  cloudguard/
+  ├── .gitignore
+  ├── .env                       ← now includes AWS credentials too
+  ├── app.py                     ← updated with dashboard tab
+  ├── analyzer.py                ← unchanged from MVP 1
+  ├── agent_analyzer.py          ← NEW: agent pipeline
+  ├── aws_connector.py           ← NEW: boto3 Security Hub integration
+  ├── tools.py                   ← NEW: CVE, docs, compliance tools
+  ├── requirements.txt           ← updated with boto3 and requests
+  ├── README.md
+  └── sample_findings/           ← unchanged from MVP 1
+
+UPDATED DEPENDENCIES (requirements.txt)
+────────────────────────────────────────
+  streamlit>=1.32.0
+  anthropic>=0.25.0
+  python-dotenv>=1.0.0
+  boto3>=1.34.0
+  requests>=2.31.0
+
+BUILD STEPS
+───────────
+
+  STEP 1 — AWS account setup (security first)
+
+    1a. Sign in to AWS console as root, immediately do these:
+        - Enable MFA on root account (IAM → Security credentials → MFA)
+        - Set billing alert at $5/month (Billing → Budgets → Create budget)
+        - Never use root credentials in any code or .env file
+
+    1b. Create a dedicated IAM user for CloudGuard:
+        - Go to IAM → Users → Create user
+        - Username: cloudguard-readonly
+        - Select: Provide user access to AWS Management Console → No
+        - Attach permissions directly, create custom policy:
+
+          Policy name: CloudGuardReadOnly
+          Policy JSON:
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [
+                  "securityhub:GetFindings",
+                  "securityhub:DescribeHub",
+                  "securityhub:ListEnabledProductsForImport",
+                  "securityhub:GetEnabledStandards"
+                ],
+                "Resource": "*"
+              }
+            ]
+          }
+
+        - Create user
+        - Go to user → Security credentials → Create access key
+        - Use case: Application running outside AWS
+        - Copy Access Key ID and Secret Access Key immediately
+        - Add to .env file:
+            AWS_ACCESS_KEY_ID=AKIA...
+            AWS_SECRET_ACCESS_KEY=...
+            AWS_DEFAULT_REGION=us-east-1
+
+    1c. Enable Security Hub:
+        - Go to AWS Security Hub in the console
+        - Click Enable Security Hub
+        - Enable AWS Foundational Security Best Practices standard
+        - Enable CIS AWS Foundations Benchmark standard
+        - Security Hub will start generating findings within minutes
+        - First 30 days are free
+
+  STEP 2 — AWS connector (aws_connector.py)
+
+    Load credentials from environment only:
+      import boto3
+      import os
+
+      def get_client():
+          return boto3.client(
+              'securityhub',
+              aws_access_key_id=os.environ.get("AWS_ACCESS_KEY_ID"),
+              aws_secret_access_key=os.environ.get("AWS_SECRET_ACCESS_KEY"),
+              region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+          )
+
+    Functions to build:
+      get_findings(severity_filter=None, max_results=50)
+        - Calls SecurityHub.get_findings()
+        - Filters: RecordState = ACTIVE, ComplianceStatus = FAILED
+        - Optional severity filter: CRITICAL, HIGH, MEDIUM, LOW
+        - Returns list of normalized finding dicts
+        - Handles pagination if more than 100 findings
+
+      test_connection()
+        - Calls DescribeHub to verify credentials work
+        - Returns True/False with error message
+        - Used by UI to show connection status
+
+      get_summary()
+        - Returns count of findings by severity
+        - Used by UI dashboard header
+
+    Error handling:
+      - NoCredentialsError: show "AWS credentials not configured"
+      - ClientError 401: show "Invalid AWS credentials"
+      - ClientError: Security Hub not enabled in this region
+      - Always fail gracefully, never crash the app
+
+  STEP 3 — Agent tools (tools.py)
+
+    Define 3 tools in Claude tool use format.
+    Each tool is a Python function + a JSON schema definition.
+
+    Tool 1: CVE Lookup
+      Schema name: lookup_cves
+      Description: Search for CVEs related to a specific AWS misconfiguration type
+      Input: { "misconfiguration_type": "string", "service": "string" }
+      Implementation:
+        - Call NVD API: https://services.nvd.nist.gov/rest/json/cves/2.0
+        - Search by keyword (e.g. "AWS S3 public access")
+        - Return top 3 most recent/severe CVEs
+        - Fields to return: CVE ID, description, CVSS score, published date
+        - NVD API is free, no key required, rate limit: 5 requests per 30 seconds
+        - Add 1 second delay between calls to respect rate limit
+
+    Tool 2: AWS Docs Fetcher
+      Schema name: fetch_aws_remediation
+      Description: Fetch official AWS remediation steps for a Security Hub control
+      Input: { "control_id": "string" }
+      Implementation:
+        - Map control ID to AWS docs URL
+          Example: S3.2 → https://docs.aws.amazon.com/securityhub/latest/userguide/s3-controls.html
+        - Fetch page with requests library
+        - Extract relevant remediation section
+        - Return clean text (strip HTML)
+        - Cache results in a dict to avoid re-fetching same docs
+
+    Tool 3: Compliance Checker
+      Schema name: check_compliance
+      Description: Get full compliance mapping for a finding type
+      Input: { "finding_type": "string", "service": "string" }
+      Implementation:
+        - Use a local Python dictionary (no API call, instant, free)
+        - Map finding types to compliance controls across:
+            CIS AWS Foundations Benchmark
+            PCI DSS v4.0
+            SOC 2 Trust Service Criteria
+            NIST SP 800-53
+            ISO 27001
+        - Return list of specific control IDs with descriptions
+        - Local lookup = zero latency, zero cost
+
+  STEP 4 — Agent analyzer (agent_analyzer.py)
+
+    This is the most important file in MVP 2.
+    It orchestrates the full agent loop.
+
+    def analyze_with_agent(finding: dict, api_key: str) -> dict:
+
+      Step 4a: Check severity
+        severity = finding["Severity"]["Label"]
+        if severity in ["LOW", "MEDIUM"]:
+            return analyzer.analyze_finding(finding, api_key)  # MVP 1 path
+
+      Step 4b: Build tool definitions list
+        tools = [
+            cveLookupTool,
+            awsDocsTool,
+            complianceTool
+        ]
+
+      Step 4c: First Claude call with tools available
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
+            tools=tools,
+            system=AGENT_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": finding_json}]
+        )
+
+      Step 4d: Tool execution loop
+        messages = initial_messages
+        while response.stop_reason == "tool_use":
+            tool_results = []
+            for block in response.content:
+                if block.type == "tool_use":
+                    result = execute_tool(block.name, block.input)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result
+                    })
+            messages.append({"role": "assistant", "content": response.content})
+            messages.append({"role": "user", "content": tool_results})
+            response = client.messages.create(...)
+
+      Step 4e: Extract final response
+        final_text = extract_text_from_response(response)
+        return parse_json_response(final_text)
+
+    Cost control in agent mode:
+      - Maximum 3 tool calls per finding (set via max_iterations=3)
+      - If loop exceeds 3 iterations, break and use what we have
+      - Log number of API calls made per finding
+
+  STEP 5 — Update UI (app.py)
+
+    Add second tab to existing app:
+      tab1, tab2 = st.tabs(["Manual Input", "Live AWS Findings"])
+
+    Tab 1 (Manual Input):
+      Unchanged from MVP 1
+
+    Tab 2 (Live AWS Findings):
+
+      Connection status banner:
+        - Show green/red indicator based on test_connection()
+        - Show AWS account ID and region if connected
+        - Show "Configure AWS credentials in sidebar" if not connected
+
+      Sidebar additions for AWS tab:
+        - AWS credentials status
+        - Region selector dropdown
+        - Severity filter (All / Critical only / High and above)
+        - Refresh button to re-fetch findings
+
+      Findings dashboard:
+        - Summary row: X Critical | Y High | Z Medium | W Low
+        - Table with columns: severity dot, title, service, resource ID, date
+        - Color coded severity dots
+        - Click row to load finding in analysis panel
+        - Show "Agent mode" or "Simple mode" badge based on severity
+
+      Analysis panel:
+        - Same output format as MVP 1
+        - Additional section for agent-sourced data:
+            CVEs found (if any)
+            Official AWS remediation link
+            Full compliance mapping
+        - Show which tools were called (transparency)
+        - Show estimated cost of this analysis
+
+  STEP 6 — Update Streamlit Cloud deployment
+
+    Push updated code to GitHub:
+      git add .
+      git commit -m "MVP 2: Live AWS integration and agent mode"
+      git push
+
+    Add AWS secrets to Streamlit Cloud:
+      Go to app settings → Secrets → Add:
+        AWS_ACCESS_KEY_ID = "AKIA..."
+        AWS_SECRET_ACCESS_KEY = "..."
+        AWS_DEFAULT_REGION = "us-east-1"
+
+    Important: Use the cloudguard-readonly IAM user credentials only.
+    Never add root account credentials to Streamlit secrets.
+
+  STEP 7 — Test end to end
+
+    Test checklist:
+      [ ] AWS connection status shows green with correct account ID
+      [ ] Findings load from real AWS Security Hub
+      [ ] LOW/MEDIUM findings use simple mode (verify with logs)
+      [ ] HIGH/CRITICAL findings use agent mode (verify tool calls in logs)
+      [ ] CVE lookup returns results without crashing
+      [ ] AWS docs fetcher returns remediation text
+      [ ] Compliance checker returns correct control IDs
+      [ ] App works normally on Manual Input tab if AWS not configured
+      [ ] No AWS credentials visible anywhere in UI
+      [ ] No credentials in git history (run: git log -p | grep AKIA)
+      [ ] Billing alert is set on AWS account
+
+ESTIMATED TIME: 3-4 days
+ESTIMATED COST: $0-2 (AWS free tier + minimal Claude API calls)
+
+
+================================================================================
+SECTION 6 — FULL FILE STRUCTURE (FINAL STATE AFTER BOTH MVPS)
+================================================================================
+
+  cloudguard/
+  ├── .gitignore                  ← CREATED FIRST, never skip this
+  ├── .env                        ← local secrets, never committed
+  ├── .env.example                ← committed, shows what keys are needed
+  │                                  (with fake placeholder values, not real keys)
+  ├── app.py                      ← Streamlit UI (both tabs)
+  ├── analyzer.py                 ← MVP 1: simple Claude analysis
+  ├── agent_analyzer.py           ← MVP 2: agent loop with tool use
+  ├── aws_connector.py            ← MVP 2: boto3 Security Hub connector
+  ├── tools.py                    ← MVP 2: CVE, docs, compliance tools
+  ├── requirements.txt
+  ├── README.md
+  └── sample_findings/
+      ├── s3_public.json
+      ├── root_keys.json
+      ├── ssh_open.json
+      ├── cloudtrail.json
+      └── mfa_disabled.json
+
+  .env.example contents (this IS committed to GitHub):
+    ANTHROPIC_API_KEY=sk-ant-your-key-here
+    AWS_ACCESS_KEY_ID=your-access-key-here
+    AWS_SECRET_ACCESS_KEY=your-secret-key-here
+    AWS_DEFAULT_REGION=us-east-1
+
+
+================================================================================
+SECTION 7 — SECURITY CHECKLIST (RUN BEFORE EVERY GIT PUSH)
+================================================================================
+
+  [ ] Run: git status
+      Verify .env is not in the list of files to be committed
+
+  [ ] Run: git diff --staged | grep -i "sk-ant"
+      Should return nothing
+
+  [ ] Run: git diff --staged | grep -i "AKIA"
+      Should return nothing (AKIA is the prefix for AWS access keys)
+
+  [ ] Verify requirements.txt does not pin versions with known CVEs
+      Run: pip audit (install with: pip install pip-audit)
+
+  [ ] Verify .gitignore contains: .env, __pycache__/, venv/, chroma_db/
+
+  [ ] Verify no print() statements that log API keys or credentials
+
+
+================================================================================
+SECTION 8 — RECOMMENDED BUILD ORDER
+================================================================================
+
+  Week 1:
+    Day 1 AM  — One-time setup (Section 3)
+    Day 1 PM  — MVP 1: project setup + sample findings
+    Day 2 AM  — MVP 1: analyzer.py
+    Day 2 PM  — MVP 1: app.py UI
+    Day 3 AM  — MVP 1: testing + bug fixes
+    Day 3 PM  — MVP 1: deploy to Streamlit Cloud
+
+  Week 2:
+    Day 1     — MVP 2: AWS account setup + IAM user + Security Hub enable
+    Day 2 AM  — MVP 2: aws_connector.py
+    Day 2 PM  — MVP 2: tools.py
+    Day 3 AM  — MVP 2: agent_analyzer.py
+    Day 3 PM  — MVP 2: update app.py with dashboard tab
+    Day 4     — MVP 2: end-to-end testing + deploy
+
+
+================================================================================
+END OF PLAN
+================================================================================
