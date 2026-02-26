@@ -1,0 +1,42 @@
+{
+  "SchemaVersion": "2018-10-08",
+  "Id": "arn:aws:securityhub:us-east-1:123456789012:subscription/aws-foundational-security-best-practices/v/1.0.0/S3.2/finding/a1b2c3d4-1234-5678-abcd-ef1234567890",
+  "ProductArn": "arn:aws:securityhub:us-east-1::product/aws/securityhub",
+  "GeneratorId": "aws-foundational-security-best-practices/v/1.0.0/S3.2",
+  "AwsAccountId": "123456789012",
+  "Types": ["Software and Configuration Checks/AWS Security Best Practices"],
+  "CreatedAt": "2024-01-15T08:30:00Z",
+  "UpdatedAt": "2024-01-15T08:30:00Z",
+  "Severity": {
+    "Label": "CRITICAL",
+    "Normalized": 90,
+    "Original": "CRITICAL"
+  },
+  "Title": "S3.2 S3 buckets should prohibit public read access",
+  "Description": "This control checks whether your S3 buckets allow public read access by evaluating the Block Public Access settings, the bucket policy, and the bucket access control list (ACL). The bucket policy or ACL allows public read access.",
+  "Resources": [
+    {
+      "Type": "AwsS3Bucket",
+      "Id": "arn:aws:s3:::my-company-data-backup-prod",
+      "Partition": "aws",
+      "Region": "us-east-1",
+      "Details": {
+        "AwsS3Bucket": {
+          "OwnerId": "abc123def456",
+          "CreatedAt": "2023-06-01T00:00:00Z"
+        }
+      }
+    }
+  ],
+  "Compliance": {
+    "Status": "FAILED",
+    "RelatedRequirements": [
+      "CIS AWS Foundations 2.3",
+      "PCI DSS v3.2.1/1.3.6",
+      "NIST.800-53.r5 AC-21",
+      "NIST.800-53.r5 AC-3"
+    ]
+  },
+  "RecordState": "ACTIVE",
+  "WorkflowState": "NEW"
+}

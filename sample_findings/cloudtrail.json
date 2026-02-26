@@ -1,0 +1,47 @@
+{
+    "SchemaVersion": "2018-10-08",
+    "Id": "arn:aws:securityhub:us-east-1:123456789012:subscription/aws-foundational-security-best-practices/v/1.0.0/CloudTrail.1/finding/e5f6a7b8-5678-9012-efab-456789012345",
+    "ProductArn": "arn:aws:securityhub:us-east-1::product/aws/securityhub",
+    "GeneratorId": "aws-foundational-security-best-practices/v/1.0.0/CloudTrail.1",
+    "AwsAccountId": "123456789012",
+    "Types": [
+        "Software and Configuration Checks/AWS Security Best Practices"
+    ],
+    "CreatedAt": "2024-01-15T10:30:00Z",
+    "UpdatedAt": "2024-01-15T10:30:00Z",
+    "Severity": {
+        "Label": "MEDIUM",
+        "Normalized": 40,
+        "Original": "MEDIUM"
+    },
+    "Title": "CloudTrail.1 CloudTrail should be enabled and configured with at least one multi-Region trail",
+    "Description": "This control checks that there is at least one multi-region AWS CloudTrail trail. CloudTrail records API calls for your account and delivers log files to you. Without CloudTrail enabled, you have no audit history of who made what API calls to your AWS environment, making forensic investigation and compliance auditing impossible.",
+    "Resources": [
+        {
+            "Type": "AwsAccount",
+            "Id": "arn:aws:cloudtrail:us-east-1:123456789012:trail/management-events",
+            "Partition": "aws",
+            "Region": "us-east-1",
+            "Details": {
+                "AwsCloudTrailTrail": {
+                    "Name": "management-events",
+                    "IsMultiRegionTrail": false,
+                    "IsLogging": false,
+                    "HomeRegion": "us-east-1"
+                }
+            }
+        }
+    ],
+    "Compliance": {
+        "Status": "FAILED",
+        "RelatedRequirements": [
+            "CIS AWS Foundations 2.1",
+            "PCI DSS v3.2.1/10.1",
+            "NIST.800-53.r5 AU-2",
+            "NIST.800-53.r5 AU-12",
+            "SOC2 CC7.2"
+        ]
+    },
+    "RecordState": "ACTIVE",
+    "WorkflowState": "NEW"
+}

@@ -1,0 +1,56 @@
+{
+    "SchemaVersion": "2018-10-08",
+    "Id": "arn:aws:securityhub:us-east-1:123456789012:subscription/aws-foundational-security-best-practices/v/1.0.0/EC2.13/finding/c3d4e5f6-3456-7890-cdef-234567890123",
+    "ProductArn": "arn:aws:securityhub:us-east-1::product/aws/securityhub",
+    "GeneratorId": "aws-foundational-security-best-practices/v/1.0.0/EC2.13",
+    "AwsAccountId": "123456789012",
+    "Types": [
+        "Software and Configuration Checks/AWS Security Best Practices"
+    ],
+    "CreatedAt": "2024-01-15T09:30:00Z",
+    "UpdatedAt": "2024-01-15T09:30:00Z",
+    "Severity": {
+        "Label": "HIGH",
+        "Normalized": 70,
+        "Original": "HIGH"
+    },
+    "Title": "EC2.13 Security groups should not allow ingress from 0.0.0.0/0 to port 22",
+    "Description": "This control checks whether security groups in use disallow unrestricted incoming SSH traffic. The control fails if inbound rules allow unrestricted access on port 22. Removing unfettered connectivity to remote console services such as SSH reduces a server's exposure to risk.",
+    "Resources": [
+        {
+            "Type": "AwsEc2SecurityGroup",
+            "Id": "arn:aws:ec2:us-east-1:123456789012:security-group/sg-0a1b2c3d4e5f67890",
+            "Partition": "aws",
+            "Region": "us-east-1",
+            "Details": {
+                "AwsEc2SecurityGroup": {
+                    "GroupName": "web-servers-prod-sg",
+                    "GroupId": "sg-0a1b2c3d4e5f67890",
+                    "IpPermissions": [
+                        {
+                            "FromPort": 22,
+                            "ToPort": 22,
+                            "IpProtocol": "tcp",
+                            "IpRanges": [
+                                {
+                                    "CidrIp": "0.0.0.0/0"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
+    ],
+    "Compliance": {
+        "Status": "FAILED",
+        "RelatedRequirements": [
+            "CIS AWS Foundations 4.1",
+            "PCI DSS v3.2.1/1.2.1",
+            "NIST.800-53.r5 AC-17",
+            "NIST.800-53.r5 SC-7"
+        ]
+    },
+    "RecordState": "ACTIVE",
+    "WorkflowState": "NEW"
+}
