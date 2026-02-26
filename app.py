@@ -1,7 +1,11 @@
 import os
 import json
+from datetime import datetime
 import streamlit as st
 from analyzer import analyze_finding
+from logger import get_logger
+
+log = get_logger(__name__)
 
 st.set_page_config(
     page_title="CloudGuard AI",
@@ -292,6 +296,16 @@ with st.sidebar:
     if preview_mode:
         st.caption("Preview active — no API calls will be made.")
 
+    # Show recent errors if any
+    if st.session_state.get("errors"):
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander(f"🔴 {len(st.session_state['errors'])} error(s)", expanded=True):
+            for err in st.session_state["errors"][-3:]:
+                st.caption(f"{err['time']} — {err['message']}")
+            if st.button("Clear", key="clear_errors"):
+                st.session_state["errors"] = []
+                st.rerun()
+
 st.markdown("""
 <div class="cg-header">
   <h1>🛡️ CloudGuard AI</h1>
@@ -380,7 +394,15 @@ if finding:
                     with st.spinner("Analyzing finding..."):
                         result = analyze_finding(finding, api_key=sidebar_key)
                     if "error" in result:
-                        st.error(f"Analysis failed: {result['error']}")
+                        msg = result['error']
+                        log.error(f"Analysis error shown in UI: {msg}")
+                        if "errors" not in st.session_state:
+                            st.session_state["errors"] = []
+                        st.session_state["errors"].append({
+                            "time": datetime.now().strftime("%H:%M:%S"),
+                            "message": msg,
+                        })
+                        st.error(f"Analysis failed: {msg}")
                     else:
                         st.session_state[cache_key] = result
                         st.rerun()
