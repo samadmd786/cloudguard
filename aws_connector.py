@@ -15,7 +15,7 @@ def get_client(key_id: str, secret: str, region: str = "us-east-1"):
     )
 
 
-def test_connection(key_id: str, secret: str, region: str = "us-east-1") -> dict:
+def verify_aws_connection(key_id: str, secret: str, region: str = "us-east-1") -> dict:
     """
     Verify AWS credentials and Security Hub access.
     Returns {"ok": True, "account_id": "...", "region": "..."} on success

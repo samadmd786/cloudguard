@@ -5,7 +5,7 @@ import streamlit as st
 from dotenv import load_dotenv
 from analyzer import analyze_finding
 from agent_analyzer import analyze_with_agent
-from aws_connector import test_connection, get_findings, get_summary
+from aws_connector import verify_aws_connection, get_findings, get_summary
 from logger import get_logger
 
 load_dotenv(override=False)  # os.environ always wins over .env
@@ -468,7 +468,7 @@ with tab2:
         conn_cache_key = f"aws_conn_{aws_key[:8]}"
         if conn_cache_key not in st.session_state:
             with st.spinner("Connecting to AWS..."):
-                st.session_state[conn_cache_key] = test_connection(aws_key, aws_secret, aws_region)
+                st.session_state[conn_cache_key] = verify_aws_connection(aws_key, aws_secret, aws_region)
 
         conn = st.session_state[conn_cache_key]
         if not conn["ok"]:
