@@ -195,6 +195,18 @@ def get_api_key() -> str:
             pass
     return key
 
+def add_activity(message: str, level: str = "info"):
+    """Append a timestamped event to the session activity log."""
+    if "activity" not in st.session_state:
+        st.session_state["activity"] = []
+    icon = "🟢" if level == "info" else "🔴"
+    st.session_state["activity"].append({
+        "time": datetime.now().strftime("%H:%M:%S"),
+        "icon": icon,
+        "message": message,
+    })
+    st.session_state["activity"] = st.session_state["activity"][-10:]
+
 def list_samples() -> list[str]:
     if not os.path.isdir(SAMPLE_DIR):
         return []
@@ -296,14 +308,15 @@ with st.sidebar:
     if preview_mode:
         st.caption("Preview active — no API calls will be made.")
 
-    # Show recent errors if any
-    if st.session_state.get("errors"):
+    # Activity log — shows last 5 events regardless of success or error
+    activity = st.session_state.get("activity", [])
+    if activity:
         st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander(f"🔴 {len(st.session_state['errors'])} error(s)", expanded=True):
-            for err in st.session_state["errors"][-3:]:
-                st.caption(f"{err['time']} — {err['message']}")
-            if st.button("Clear", key="clear_errors"):
-                st.session_state["errors"] = []
+        with st.expander("📋 Recent Activity", expanded=True):
+            for entry in reversed(activity[-5:]):
+                st.caption(f"{entry['icon']} {entry['time']} — {entry['message']}")
+            if st.button("Clear", key="clear_activity"):
+                st.session_state["activity"] = []
                 st.rerun()
 
 st.markdown("""
@@ -386,6 +399,7 @@ if finding:
                 if preview_mode:
                     with open("tests/mock_response.json") as f:
                         result = json.load(f)
+                    add_activity(f"Preview: {finding.get('Title','Finding')[:50]}")
                     st.session_state[cache_key] = result
                     st.rerun()
                 elif not sidebar_key:
@@ -396,14 +410,10 @@ if finding:
                     if "error" in result:
                         msg = result['error']
                         log.error(f"Analysis error shown in UI: {msg}")
-                        if "errors" not in st.session_state:
-                            st.session_state["errors"] = []
-                        st.session_state["errors"].append({
-                            "time": datetime.now().strftime("%H:%M:%S"),
-                            "message": msg,
-                        })
+                        add_activity(msg, level="error")
                         st.error(f"Analysis failed: {msg}")
                     else:
+                        add_activity(f"Analyzed: {finding.get('Title','Finding')[:50]}")
                         st.session_state[cache_key] = result
                         st.rerun()
 
