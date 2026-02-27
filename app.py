@@ -329,7 +329,7 @@ with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
     preview_mode = st.toggle(
         "⚡ UI Preview Mode",
-        value=True,
+        value=False,
         help="Loads a mock result instantly — no API call. Great for UI iteration."
     )
     if preview_mode:
