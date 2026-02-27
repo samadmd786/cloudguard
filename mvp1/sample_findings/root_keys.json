@@ -1,0 +1,38 @@
+{
+    "SchemaVersion": "2018-10-08",
+    "Id": "arn:aws:securityhub:us-east-1:123456789012:subscription/aws-foundational-security-best-practices/v/1.0.0/IAM.4/finding/b2c3d4e5-2345-6789-bcde-f23456789012",
+    "ProductArn": "arn:aws:securityhub:us-east-1::product/aws/securityhub",
+    "GeneratorId": "aws-foundational-security-best-practices/v/1.0.0/IAM.4",
+    "AwsAccountId": "123456789012",
+    "Types": [
+        "Software and Configuration Checks/AWS Security Best Practices"
+    ],
+    "CreatedAt": "2024-01-15T09:00:00Z",
+    "UpdatedAt": "2024-01-15T09:00:00Z",
+    "Severity": {
+        "Label": "CRITICAL",
+        "Normalized": 90,
+        "Original": "CRITICAL"
+    },
+    "Title": "IAM.4 IAM root user access key should not exist",
+    "Description": "This control checks whether the root user access key is present. The root account is the most privileged user in an AWS account. AWS access keys provide programmatic access to a given account. It is recommended that root account access keys are not exist so that you can limit vectors by which the account may be compromised.",
+    "Resources": [
+        {
+            "Type": "AwsAccount",
+            "Id": "arn:aws:iam::123456789012:root",
+            "Partition": "aws",
+            "Region": "us-east-1"
+        }
+    ],
+    "Compliance": {
+        "Status": "FAILED",
+        "RelatedRequirements": [
+            "CIS AWS Foundations 1.12",
+            "PCI DSS v3.2.1/8.3.1",
+            "NIST.800-53.r5 AC-2",
+            "SOC2 CC6.1"
+        ]
+    },
+    "RecordState": "ACTIVE",
+    "WorkflowState": "NEW"
+}
