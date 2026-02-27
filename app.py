@@ -446,6 +446,8 @@ with tab1:
                             st.error(f"Analysis failed: {msg}")
                         else:
                             add_activity(f"Analyzed: {finding.get('Title','Finding')[:50]}")
+                            from memory_store import store as mem_store
+                            mem_store(finding, result)
                             st.session_state[cache_key] = result
                             st.rerun()
     else:
@@ -555,6 +557,8 @@ with tab2:
                                         st.error(result["error"])
                                     else:
                                         add_activity(f"{'Agent' if use_agent else 'Analyzed'}: {title[:40]}")
+                                        from memory_store import store as mem_store
+                                        mem_store(f, result)
                                         st.session_state[cache_key] = result
                                         st.rerun()
 
