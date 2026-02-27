@@ -1,0 +1,35 @@
+{
+    "plain_english": "The security group 'web-servers-prod-sg' (sg-0a1b2c3d4e5f67890) allows inbound SSH (port 22) from any IP address on the internet (0.0.0.0/0). This means anyone in the world can attempt to log into your production web servers directly via SSH, with no network-level restriction.",
+    "why_it_matters": "Attackers continuously scan the internet for open SSH ports. Once found, your servers become targets for brute-force credential attacks, exploitation of unpatched SSH vulnerabilities, and lateral movement into the rest of your infrastructure. A successful login grants full shell access to the server.",
+    "business_impact": {
+        "data_risk": "An attacker with SSH access can exfiltrate all data on the server and pivot to attached databases or S3 buckets.",
+        "financial_risk": "Ransomware deployment or cryptomining via a compromised server can result in unexpected AWS bills and business downtime.",
+        "compliance_risk": "Violates CIS AWS Foundations 4.1, PCI DSS 1.2.1, and NIST AC-17. A breach traced to this misconfiguration could trigger PCI DSS fines and mandatory forensic audits."
+    },
+    "fix_steps": [
+        {
+            "step": "Remove the rule allowing SSH from all IPs on security group sg-0a1b2c3d4e5f67890.",
+            "cli_command": "aws ec2 revoke-security-group-ingress --region us-east-1 --group-id sg-0a1b2c3d4e5f67890 --protocol tcp --port 22 --cidr 0.0.0.0/0"
+        },
+        {
+            "step": "Add a new rule allowing SSH only from your trusted IP range (replace 203.0.113.0/24 with your VPN or office CIDR).",
+            "cli_command": "aws ec2 authorize-security-group-ingress --region us-east-1 --group-id sg-0a1b2c3d4e5f67890 --protocol tcp --port 22 --cidr 203.0.113.0/24"
+        },
+        {
+            "step": "Verify that the open rule is gone and only the trusted CIDR remains.",
+            "cli_command": "aws ec2 describe-security-groups --region us-east-1 --group-ids sg-0a1b2c3d4e5f67890 --query 'SecurityGroups[0].IpPermissions[?FromPort==`22`]'"
+        },
+        {
+            "step": "Consider switching to AWS Systems Manager Session Manager for SSH-less access, which requires no open inbound ports at all.",
+            "cli_command": ""
+        }
+    ],
+    "compliance_frameworks": [
+        "CIS AWS Foundations 4.1",
+        "PCI DSS v3.2.1/1.2.1",
+        "NIST.800-53.r5 AC-17",
+        "NIST.800-53.r5 SC-7"
+    ],
+    "priority": "Immediate",
+    "tldr": "Your production web servers accept SSH login attempts from anywhere on the internet — restrict this to known IP addresses immediately to prevent unauthorized access."
+}
