@@ -127,6 +127,27 @@ def add_activity(message: str, level: str = "info"):
     st.session_state["activity"] = st.session_state["activity"][-10:]
 
 
+RATE_LIMIT = 5        # tighter limit for public deployment
+RATE_WINDOW = 3600    # per hour
+
+def check_rate_limit() -> bool:
+    """Block if session has exceeded rate limit. Returns True if blocked."""
+    import time
+    now = time.time()
+    calls = st.session_state.get("rate_calls", [])
+    calls = [t for t in calls if now - t < RATE_WINDOW]
+    if len(calls) >= RATE_LIMIT:
+        remaining = int(RATE_WINDOW - (now - calls[0]))
+        mins = remaining // 60
+        st.warning(
+            f"⚠️ Rate limit reached — {RATE_LIMIT} free analyses per hour. "
+            f"Try again in {mins} min."
+        )
+        return True
+    calls.append(now)
+    st.session_state["rate_calls"] = calls
+    return False
+
 def list_samples() -> list[str]:
     if not os.path.isdir(SAMPLE_DIR):
         return []
@@ -209,6 +230,7 @@ with st.sidebar:
         "Input method",
         ["📂 Sample finding", "📋 Paste JSON", "📁 Upload .json file"],
         index=0,
+        horizontal=True,
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -314,6 +336,8 @@ if finding:
                 elif not sidebar_key:
                     st.error("No API key found. Set ANTHROPIC_API_KEY or enter it in the sidebar.")
                 else:
+                    if check_rate_limit():
+                        st.stop()
                     with st.spinner("Analyzing finding..."):
                         result = analyze_finding(finding, api_key=sidebar_key)
                     if "error" in result:

@@ -222,6 +222,32 @@ def add_activity(message: str, level: str = "info"):
     })
     st.session_state["activity"] = st.session_state["activity"][-10:]
 
+
+RATE_LIMIT = 20          # max analyses per session per hour
+RATE_WINDOW = 3600       # seconds
+
+def check_rate_limit() -> bool:
+    """
+    Check if the current session has exceeded the rate limit.
+    Returns True (and shows a warning) if the limit is reached.
+    Caller should return / st.stop() when this returns True.
+    """
+    import time
+    now = time.time()
+    calls = st.session_state.get("rate_calls", [])
+    calls = [t for t in calls if now - t < RATE_WINDOW]  # drop expired
+    if len(calls) >= RATE_LIMIT:
+        remaining = int(RATE_WINDOW - (now - calls[0]))
+        mins = remaining // 60
+        st.warning(
+            f"⚠️ Rate limit reached — {RATE_LIMIT} analyses per hour per session. "
+            f"Try again in {mins} min."
+        )
+        return True
+    calls.append(now)
+    st.session_state["rate_calls"] = calls
+    return False
+
 def list_samples() -> list[str]:
     if not os.path.isdir(SAMPLE_DIR):
         return []
@@ -439,6 +465,8 @@ with tab1:
                     elif not sidebar_key:
                         st.error("No API key found. Set ANTHROPIC_API_KEY or enter in the sidebar.")
                     else:
+                        if check_rate_limit():
+                            st.stop()
                         with st.spinner("Analyzing finding..."):
                             result = analyze_finding(finding, api_key=sidebar_key)
                         if "error" in result:
@@ -550,6 +578,8 @@ with tab2:
                                 if not sidebar_key:
                                     st.error("No API key in sidebar.")
                                 else:
+                                    if check_rate_limit():
+                                        st.stop()
                                     tip = "Running agent with CVE + compliance tools..." if use_agent else "Analyzing..."
                                     with st.spinner(tip):
                                         fn = analyze_with_agent if use_agent else analyze_finding
