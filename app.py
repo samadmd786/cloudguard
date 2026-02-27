@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from analyzer import analyze_finding
 from agent_analyzer import analyze_with_agent
 from aws_connector import verify_aws_connection, get_findings, get_summary
+from rag_analyzer import analyze_with_rag
+from risk_profiler import get_profile
+from memory_store import count as memory_count
 from logger import get_logger
 
 load_dotenv(override=False)  # os.environ always wins over .env
@@ -351,7 +354,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2 = st.tabs(["💾 Manual Input", "☁️ Live AWS Findings"])
+tab1, tab2, tab3 = st.tabs(["💾 Manual Input", "☁️ Live AWS Findings", "🧠 Intelligence"])
+
 
 with tab1:
     finding = None
@@ -553,3 +557,110 @@ with tab2:
                                         add_activity(f"{'Agent' if use_agent else 'Analyzed'}: {title[:40]}")
                                         st.session_state[cache_key] = result
                                         st.rerun()
+
+
+with tab3:
+    st.markdown('<div class="section-header">Org Risk Intelligence</div>', unsafe_allow_html=True)
+
+    mem_count = memory_count()
+
+    if mem_count == 0:
+        st.info("🧠 No findings in memory yet. Analyse some findings in the other tabs to build your risk profile.")
+    else:
+        if st.button("🔄 Refresh Profile", key="refresh_profile"):
+            st.session_state.pop("risk_profile", None)
+
+        if "risk_profile" not in st.session_state:
+            with st.spinner("Computing risk profile..."):
+                st.session_state["risk_profile"] = get_profile()
+
+        profile = st.session_state["risk_profile"]
+
+        # Risk score card
+        score = profile["score"]
+        label = profile["label"]
+        st.markdown(f"""
+        <div style="background:linear-gradient(135deg,#0d1b40,#0a1628);
+                    border:1px solid rgba(99,179,255,0.2);border-radius:16px;
+                    padding:28px 36px;margin-bottom:20px;text-align:center;">
+          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:#4a6fa5;margin-bottom:8px;">
+            Org Risk Score
+          </div>
+          <div style="font-size:4rem;font-weight:800;
+                      background:linear-gradient(90deg,#63b3ff,#a78bfa);
+                      -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+            {score}
+          </div>
+          <div style="font-size:1.1rem;font-weight:600;color:#e2e8f0;margin-top:4px;">{label}</div>
+          <div style="font-size:0.85rem;color:#64748b;margin-top:8px;">{mem_count} findings in memory</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.caption(profile["trend_hint"])
+
+        # Severity breakdown
+        st.markdown('<div class="section-header">Severity Breakdown</div>', unsafe_allow_html=True)
+        bd = profile["breakdown"]
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("🔴 Critical", bd["CRITICAL"])
+        c2.metric("🟠 High",     bd["HIGH"])
+        c3.metric("🟡 Medium",   bd["MEDIUM"])
+        c4.metric("🟢 Low",      bd["LOW"])
+
+        # Top recurring issues
+        if profile["top_issues"]:
+            st.markdown('<div class="section-header">Top Recurring Issues</div>', unsafe_allow_html=True)
+            for i, issue in enumerate(profile["top_issues"], 1):
+                bar_pct = min(int((issue["count"] / profile["total"]) * 100), 100)
+                st.markdown(f"""
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+                  <span style="color:#64748b;width:18px;text-align:right;font-size:0.8rem;">{i}</span>
+                  <div style="flex:1;">
+                    <div style="font-size:0.88rem;color:#e2e8f0;margin-bottom:4px;">{issue['title'][:80]}</div>
+                    <div style="height:4px;background:rgba(99,179,255,0.1);border-radius:2px;">
+                      <div style="width:{bar_pct}%;height:100%;background:linear-gradient(90deg,#63b3ff,#a78bfa);border-radius:2px;"></div>
+                    </div>
+                  </div>
+                  <span style="color:#63b3ff;font-weight:700;font-size:0.85rem;min-width:24px;">{issue['count']}</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+        # Finding history with RAG re-analysis
+        from memory_store import get_all as get_all_findings
+        st.markdown('<div class="section-header">Finding History</div>', unsafe_allow_html=True)
+        all_findings_meta = get_all_findings(limit=100)
+
+        if all_findings_meta:
+            SEV_ICON = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
+            for idx, meta in enumerate(reversed(all_findings_meta[:50])):
+                sev = meta.get("severity", "LOW")
+                title = meta.get("title", "Unknown")[:70]
+                stored_at = meta.get("stored_at", "")[:10]
+
+                with st.expander(f"{SEV_ICON.get(sev,'')} {sev} — {title}  ·  {stored_at}", expanded=False):
+                    try:
+                        past_result = json.loads(meta.get("analysis_json", "{}"))
+                        if past_result:
+                            st.markdown(f"**TL;DR:** {past_result.get('tldr','—')}")
+                            st.markdown(f"**Priority:** {past_result.get('priority','—')}")
+                            st.markdown(f"**Plain English:** {past_result.get('plain_english','—')}")
+                    except Exception:
+                        st.caption("Analysis not available.")
+
+                    rag_key = f"rag_history_{idx}"
+                    if rag_key in st.session_state:
+                        render_analysis({}, st.session_state[rag_key])
+                    elif sidebar_key:
+                        if st.button("🧠 Re-analyse with RAG", key=f"rag_btn_{idx}"):
+                            try:
+                                finding_stub = {"Title": title, "Severity": {"Label": sev}}
+                                with st.spinner("Running RAG analysis..."):
+                                    rag_result = analyze_with_rag(finding_stub, api_key=sidebar_key)
+                                if "error" not in rag_result:
+                                    st.session_state[rag_key] = rag_result
+                                    add_activity(f"RAG re-analysis: {title[:40]}")
+                                    st.rerun()
+                                else:
+                                    st.error(rag_result["error"])
+                            except Exception as e:
+                                st.error(str(e))
