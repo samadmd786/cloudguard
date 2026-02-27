@@ -320,12 +320,6 @@ with st.sidebar:
 
 
     st.markdown("<br>", unsafe_allow_html=True)
-    input_method = st.radio(
-        "Input method",
-        ["📂 Sample finding", "📋 Paste JSON", "📁 Upload .json file"],
-        index=0,
-    )
-
     st.markdown("<br>", unsafe_allow_html=True)
     preview_mode = st.toggle(
         "⚡ UI Preview Mode",
@@ -354,12 +348,20 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tab1, tab2, tab3 = st.tabs(["💾 Manual Input", "☁️ Live AWS Findings", "🧠 Intelligence"])
+tab1, tab2, tab3 = st.tabs(["💾 Manual Input", "☁️ Live AWS Findings", "📊 Risk Profile"])
 
 
 with tab1:
     finding = None
     finding_source = None
+
+    input_method = st.radio(
+        "Input method",
+        ["📂 Sample finding", "📋 Paste JSON", "📁 Upload .json file"],
+        index=0,
+        horizontal=True,
+    )
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # Sample selector
     if input_method == "📂 Sample finding":
