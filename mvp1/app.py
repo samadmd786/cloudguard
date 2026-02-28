@@ -208,6 +208,38 @@ def render_analysis(finding: dict, result: dict):
         tags_html = " ".join(f'<span class="tag">{f}</span>' for f in frameworks)
         st.markdown(tags_html, unsafe_allow_html=True)
 
+    # Export buttons
+    st.markdown('<div class="section-header">Export report</div>', unsafe_allow_html=True)
+    import sys, os as _os
+    sys.path.insert(0, _os.path.dirname(_os.path.dirname(__file__)))
+    from exporter import to_markdown, to_pdf
+    import hashlib
+    _eid = hashlib.md5(finding.get("Id", finding.get("Title", "report")).encode()).hexdigest()[:8]
+    _slug = finding.get("Title", "report")[:30].replace(" ", "_").lower()
+    dcol1, dcol2 = st.columns(2)
+    with dcol1:
+        st.download_button(
+            "📄 Download Markdown",
+            data=to_markdown(finding, result),
+            file_name=f"cloudguard_{_slug}.md",
+            mime="text/markdown",
+            use_container_width=True,
+            key=f"dl_md_{_eid}",
+        )
+    with dcol2:
+        try:
+            st.download_button(
+                "📑 Download PDF",
+                data=to_pdf(finding, result),
+                file_name=f"cloudguard_{_slug}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                key=f"dl_pdf_{_eid}",
+            )
+        except Exception as e:
+            st.caption(f"PDF unavailable: {e}")
+
+
 
 with st.sidebar:
     st.markdown('<div class="sidebar-logo">🛡️ CloudGuard AI</div>', unsafe_allow_html=True)
