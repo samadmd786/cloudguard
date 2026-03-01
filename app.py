@@ -519,7 +519,7 @@ with tab2:
     from dotenv import dotenv_values as _dv
     _dot = _dv(".env") if preview_mode else {}
     _has_creds = (
-        bool(st.session_state.get("aws_key_id"))
+        bool(st.session_state.get("aws_connected"))
         or bool(_dot.get("AWS_ACCESS_KEY_ID"))
     )
 
@@ -559,8 +559,10 @@ with tab2:
 
         conn = st.session_state[conn_cache_key]
         if not conn["ok"]:
+            st.session_state["aws_connected"] = False
             st.error(f"AWS connection failed: {conn['error']}")
         else:
+            st.session_state["aws_connected"] = True
             st.success(f"✓ Connected | Account: {conn['account_id']} | Region: {conn['region']}")
 
             # Controls row
