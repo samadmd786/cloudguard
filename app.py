@@ -602,16 +602,16 @@ with tab2:
                 st.session_state.pop("live_findings", None)
                 st.session_state.pop("aws_summary", None)
 
-            # Fetch findings
-            if "live_findings" not in st.session_state:
-                with st.spinner("Fetching findings from Security Hub..."):
-                    st.session_state["live_findings"] = get_findings(
-                        aws_key, aws_secret,
-                        severity_filter=sev_filter or None,
-                        max_results=max_results,
-                        region=aws_region,
-                    )
-                    st.session_state["aws_summary"] = get_summary(aws_key, aws_secret, aws_region)
+        # Fetch findings
+        if "live_findings" not in st.session_state:
+            with st.spinner("Fetching findings from Security Hub..."):
+                st.session_state["live_findings"] = get_findings(
+                    aws_key, aws_secret,
+                    severity_filter=sev_filter or None,
+                    max_results=max_results,
+                    region=aws_region,
+                )
+                st.session_state["aws_summary"] = get_summary(st.session_state["live_findings"])
 
 
             findings = st.session_state.get("live_findings", [])

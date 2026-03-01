@@ -121,25 +121,22 @@ def get_findings(key_id: str, secret: str, severity_filter: list = None,
         return []
 
 
-def get_summary(key_id: str, secret: str, region: str = "us-east-1") -> dict:
+def get_summary(findings: list[dict]) -> dict:
     """
     Return finding counts grouped by severity for the dashboard header.
 
-    Fetches up to 200 recent findings and calculates an aggregate count
-    across all severities, including INFORMATIONAL items.
+    Calculates an aggregate count across all severities, including INFORMATIONAL items,
+    based on the provided list of findings.
 
     Args:
-        key_id (str): AWS Access Key ID.
-        secret (str): AWS Secret Access Key.
-        region (str, optional): AWS region. Defaults to "us-east-1".
+        findings (list[dict]): A list of findings to summarize.
 
     Returns:
         dict: A dictionary mapping severity labels to their respective counts,
               plus a 'total' key for the overall sum.
     """
-    all_findings = get_findings(key_id, secret, max_results=200, region=region)
     summary = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFORMATIONAL": 0, "total": 0}
-    for f in all_findings:
+    for f in findings:
         sev = f.get("Severity", {}).get("Label", "")
         if sev in summary:
             summary[sev] += 1

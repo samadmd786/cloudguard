@@ -65,7 +65,7 @@ def test_get_findings_handles_client_error(mocker: MockerFixture):
     findings = get_findings("key", "secret")
     assert findings == []
 
-def test_get_summary(mocker: MockerFixture):
+def test_get_summary():
     mock_findings = [
         {"Severity": {"Label": "CRITICAL"}},
         {"Severity": {"Label": "CRITICAL"}},
@@ -73,12 +73,12 @@ def test_get_summary(mocker: MockerFixture):
         {"Severity": {"Label": "LOW"}},
         {}, # Missing severity entirely
     ]
-    mocker.patch("aws_connector.get_findings", return_value=mock_findings)
     
-    summary = get_summary("key", "secret")
+    summary = get_summary(mock_findings)
     
     assert summary["CRITICAL"] == 2
     assert summary["HIGH"] == 1
     assert summary["MEDIUM"] == 0
     assert summary["LOW"] == 1
+    assert summary["INFORMATIONAL"] == 0
     assert summary["total"] == 4
