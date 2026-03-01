@@ -529,6 +529,17 @@ with tab2:
     aws_secret = st.session_state.get("aws_secret_key", "")
     aws_region = st.session_state.get("aws_region_val", "us-east-1")
 
+    # In preview mode, fall back to .env credentials if sidebar is empty
+    if preview_mode:
+        if not aws_key:
+            aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
+        if not aws_secret:
+            aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+        if not aws_region or aws_region == "us-east-1":
+            aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+        if aws_key:
+            st.caption("🔑 Using AWS credentials from environment (.env)")
+
     if not aws_key or not aws_secret:
         st.warning("⚠️ Enter your AWS credentials in the sidebar to connect to Security Hub.")
     else:
