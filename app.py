@@ -587,14 +587,24 @@ with tab2:
 
             # Controls row
             ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([2, 2, 1])
+            def _on_filter_change():
+                st.session_state.pop("live_findings", None)
+                st.session_state.pop("aws_summary", None)
+
             with ctrl_col1:
                 sev_filter = st.multiselect(
                     "Severity filter",
                     ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATIONAL"],
                     default=[],
+                    key="sev_filter_live",
+                    on_change=_on_filter_change
                 )
             with ctrl_col2:
-                max_results = st.slider("Max findings", 5, 100, 25)
+                max_results = st.slider(
+                    "Max findings", 5, 100, 25,
+                    key="max_results_live",
+                    on_change=_on_filter_change
+                )
             with ctrl_col3:
                 refresh = st.button("🔄 Refresh", use_container_width=True)
 
@@ -613,60 +623,59 @@ with tab2:
                 )
                 st.session_state["aws_summary"] = get_summary(st.session_state["live_findings"])
 
+        findings = st.session_state.get("live_findings", [])
+        summary = st.session_state.get("aws_summary", {})
 
-            findings = st.session_state.get("live_findings", [])
-            summary = st.session_state.get("aws_summary", {})
+        # Summary metric cards
+        st.markdown('<div class="section-header">Posture Overview</div>', unsafe_allow_html=True)
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("🔴 Critical", summary.get("CRITICAL", 0))
+        m2.metric("🟠 High", summary.get("HIGH", 0))
+        m3.metric("🟡 Medium", summary.get("MEDIUM", 0))
+        m4.metric("🟢 Low", summary.get("LOW", 0))
+        m5.metric("⚪ Info", summary.get("INFORMATIONAL", 0))
 
-            # Summary metric cards
-            st.markdown('<div class="section-header">Posture Overview</div>', unsafe_allow_html=True)
-            m1, m2, m3, m4, m5 = st.columns(5)
-            m1.metric("🔴 Critical", summary.get("CRITICAL", 0))
-            m2.metric("🟠 High", summary.get("HIGH", 0))
-            m3.metric("🟡 Medium", summary.get("MEDIUM", 0))
-            m4.metric("🟢 Low", summary.get("LOW", 0))
-            m5.metric("⚪ Info", summary.get("INFORMATIONAL", 0))
+        if not findings:
+            st.info("No findings match your current filter.")
+        else:
+            st.markdown(f'<div class="section-header">{len(findings)} Findings</div>', unsafe_allow_html=True)
 
-            if not findings:
-                st.info("No findings match your current filter.")
-            else:
-                st.markdown(f'<div class="section-header">{len(findings)} Findings</div>', unsafe_allow_html=True)
+            SEV_COLOR = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFORMATIONAL": "⚪"}
+            for idx, f in enumerate(findings):
+                sev = f.get("Severity", {}).get("Label", "UNKNOWN")
+                title = f.get("Title", "Unknown")
+                resource = (f.get("Resources") or [{}])[0].get("Id", "—")[-60:]
+                fid = f.get("Id", str(idx))
 
-                SEV_COLOR = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFORMATIONAL": "⚪"}
-                for idx, f in enumerate(findings):
-                    sev = f.get("Severity", {}).get("Label", "UNKNOWN")
-                    title = f.get("Title", "Unknown")
-                    resource = (f.get("Resources") or [{}])[0].get("Id", "—")[-60:]
-                    fid = f.get("Id", str(idx))
+                with st.expander(f"{SEV_COLOR.get(sev, '')} {sev} — {title}", expanded=False):
+                    st.caption(f"Resource: `{resource}`")
+                    cache_key = f"live_{fid}"
 
-                    with st.expander(f"{SEV_COLOR.get(sev, '')} {sev} — {title}", expanded=False):
-                        st.caption(f"Resource: `{resource}`")
-                        cache_key = f"live_{fid}"
-
-                        if cache_key in st.session_state:
-                            render_analysis(f, st.session_state[cache_key])
-                            st.caption("⚡ Cached")
-                        else:
-                            use_agent = sev in ("CRITICAL", "HIGH")
-                            label = "🤖 Agent Analyze" if use_agent else "🔍 Analyze"
-                            if st.button(label, key=f"btn_{idx}", type="primary"):
-                                if not sidebar_key:
-                                    st.error("No API key in sidebar.")
+                    if cache_key in st.session_state:
+                        render_analysis(f, st.session_state[cache_key])
+                        st.caption("⚡ Cached")
+                    else:
+                        use_agent = sev in ("CRITICAL", "HIGH")
+                        label = "🤖 Agent Analyze" if use_agent else "🔍 Analyze"
+                        if st.button(label, key=f"btn_{idx}", type="primary"):
+                            if not sidebar_key:
+                                st.error("No API key in sidebar.")
+                            else:
+                                if check_rate_limit():
+                                    st.stop()
+                                tip = "Running agent with CVE + compliance tools..." if use_agent else "Analyzing..."
+                                with st.spinner(tip):
+                                    fn = analyze_with_agent if use_agent else analyze_finding
+                                    result = fn(f, api_key=sidebar_key)
+                                if "error" in result:
+                                    add_activity(result["error"], level="error")
+                                    st.error(result["error"])
                                 else:
-                                    if check_rate_limit():
-                                        st.stop()
-                                    tip = "Running agent with CVE + compliance tools..." if use_agent else "Analyzing..."
-                                    with st.spinner(tip):
-                                        fn = analyze_with_agent if use_agent else analyze_finding
-                                        result = fn(f, api_key=sidebar_key)
-                                    if "error" in result:
-                                        add_activity(result["error"], level="error")
-                                        st.error(result["error"])
-                                    else:
-                                        add_activity(f"{'Agent' if use_agent else 'Analyzed'}: {title[:40]}")
-                                        from memory_store import store as mem_store
-                                        mem_store(f, result)
-                                        st.session_state[cache_key] = result
-                                        st.rerun()
+                                    add_activity(f"{'Agent' if use_agent else 'Analyzed'}: {title[:40]}")
+                                    from memory_store import store as mem_store
+                                    mem_store(f, result)
+                                    st.session_state[cache_key] = result
+                                    st.rerun()
 
 
 with tab3:
