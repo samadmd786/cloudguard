@@ -61,7 +61,7 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
     try:
         response = client.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=1500,
+            max_tokens=4000,
             system=SYSTEM_PROMPT,
             messages=[
                 {

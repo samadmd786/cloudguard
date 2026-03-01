@@ -71,7 +71,7 @@ def analyze_with_rag(finding: dict, api_key: str = None) -> dict:
     try:
         response = client.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=2000,
+            max_tokens=4000,
             system=rag_system_prompt,
             messages=[{"role": "user", "content": f"Analyse this finding:\n\n{finding_json}"}],
         )
