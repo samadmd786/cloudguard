@@ -367,17 +367,6 @@ with st.sidebar:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # AWS credentials — always per-session, never from shared server env
-    with st.expander("☁️ AWS Credentials", expanded=not bool(st.session_state.get("aws_key_id"))):
-        st.caption("Enter your own AWS credentials. These are never stored or logged.")
-        aws_key_id = st.text_input("Access Key ID", placeholder="AKIA...", type="password", key="aws_key_id")
-        aws_secret = st.text_input("Secret Access Key", placeholder="...", type="password", key="aws_secret_key")
-        aws_region = st.text_input("Region", value=st.session_state.get("aws_region_val", "us-east-1"), key="aws_region_val")
-        if aws_key_id and aws_secret:
-            st.success("AWS credentials set ✓")
-
-
-    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     preview_mode = st.toggle(
         "⚡ UI Preview Mode",
@@ -524,6 +513,15 @@ with tab1:
 
 with tab2:
     st.markdown('<div class="section-header">Live AWS Security Hub</div>', unsafe_allow_html=True)
+
+    # AWS credentials — per-session only, never stored
+    with st.expander("☁️ AWS Credentials", expanded=not bool(st.session_state.get("aws_key_id"))):
+        st.caption("Enter your own AWS credentials. These are never stored or logged.")
+        st.text_input("Access Key ID", placeholder="AKIA...", type="password", key="aws_key_id")
+        st.text_input("Secret Access Key", placeholder="...", type="password", key="aws_secret_key")
+        st.text_input("Region", value=st.session_state.get("aws_region_val", "us-east-1"), key="aws_region_val")
+        if st.session_state.get("aws_key_id") and st.session_state.get("aws_secret_key"):
+            st.success("AWS credentials set ✓")
 
     aws_key = st.session_state.get("aws_key_id", "")
     aws_secret = st.session_state.get("aws_secret_key", "")
