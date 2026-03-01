@@ -93,9 +93,10 @@ def to_markdown(finding: dict, result: dict) -> str:
 def to_pdf(finding: dict, result: dict) -> bytes:
     """
     Return a PDF report as bytes.
-    Uses fpdf2 — no system dependencies required.
+    Uses fpdf2 - no system dependencies required.
     """
     from fpdf import FPDF
+    import textwrap
 
     title = finding.get("Title", "Unknown Finding")
     sev = finding.get("Severity", {}).get("Label", "UNKNOWN")
@@ -154,7 +155,9 @@ def to_pdf(finding: dict, result: dict) -> bytes:
     # Metadata row
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(100, 116, 139)
-    pdf.multi_cell(0, 6, f"Priority: {priority}   |   Resource: {resource}")
+    import textwrap
+    wrapped_resource = "\n".join(textwrap.wrap(resource, width=90, break_long_words=True))
+    pdf.multi_cell(0, 6, f"Priority: {priority}   |   Resource:\n{wrapped_resource}")
     pdf.ln(10)
 
     def section(heading: str):
@@ -202,14 +205,18 @@ def to_pdf(finding: dict, result: dict) -> bytes:
             if step.get("cli_command"):
                 pdf.set_fill_color(230, 235, 245)
                 pdf.set_font("Courier", "", 8)
-                pdf.multi_cell(0, 5, step["cli_command"], fill=True)
+                raw_cmd = step["cli_command"].replace("—", "-")
+                # Force wrap long commands so they don't break fpdf if they lack spaces
+                wrapped_cmd = "\n".join(textwrap.wrap(raw_cmd, width=90, break_long_words=True))
+                pdf.multi_cell(0, 5, wrapped_cmd, fill=True)
             pdf.ln(3)
 
     # Compliance
     if frameworks:
         section("Compliance Frameworks")
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 6, "  ".join(frameworks))
+        wrapped_frameworks = "\n".join(textwrap.wrap("  ".join(frameworks), width=90, break_long_words=True))
+        pdf.multi_cell(0, 6, wrapped_frameworks)
         pdf.ln(8)
 
     # Footer
