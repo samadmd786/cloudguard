@@ -514,8 +514,17 @@ with tab1:
 with tab2:
     st.markdown('<div class="section-header">Live AWS Security Hub</div>', unsafe_allow_html=True)
 
-    # AWS credentials — per-session only, never stored
-    with st.expander("☁️ AWS Credentials", expanded=not bool(st.session_state.get("aws_key_id"))):
+    # Pre-check credentials from session state and .env (for preview mode)
+    # so the expander knows whether to collapse before rendering
+    from dotenv import dotenv_values as _dv
+    _dot = _dv(".env") if preview_mode else {}
+    _has_creds = (
+        bool(st.session_state.get("aws_key_id"))
+        or bool(_dot.get("AWS_ACCESS_KEY_ID"))
+    )
+
+    # AWS credentials expander — auto-collapses once creds are available
+    with st.expander("☁️ AWS Credentials", expanded=not _has_creds):
         st.caption("Enter your own AWS credentials. These are never stored or logged.")
         st.text_input("Access Key ID", placeholder="AKIA...", type="password", key="aws_key_id")
         st.text_input("Secret Access Key", placeholder="...", type="password", key="aws_secret_key")
@@ -527,10 +536,8 @@ with tab2:
     aws_secret = st.session_state.get("aws_secret_key", "")
     aws_region = st.session_state.get("aws_region_val", "us-east-1")
 
-    # In preview mode, read directly from .env file (bypasses os.environ)
+    # In preview mode, fill from .env if sidebar is empty
     if preview_mode:
-        from dotenv import dotenv_values
-        _dot = dotenv_values(".env")
         if not aws_key:
             aws_key = _dot.get("AWS_ACCESS_KEY_ID", "")
         if not aws_secret:
