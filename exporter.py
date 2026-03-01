@@ -154,7 +154,7 @@ def to_pdf(finding: dict, result: dict) -> bytes:
     # Metadata row
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(100, 116, 139)
-    pdf.cell(0, 6, f"Priority: {priority}   |   Resource: {resource}")
+    pdf.multi_cell(0, 6, f"Priority: {priority}   |   Resource: {resource}")
     pdf.ln(10)
 
     def section(heading: str):
