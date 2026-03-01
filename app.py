@@ -571,7 +571,7 @@ with tab2:
                 sev_filter = st.multiselect(
                     "Severity filter",
                     ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
-                    default=["CRITICAL", "HIGH"],
+                    default=[],
                 )
             with ctrl_col2:
                 max_results = st.slider("Max findings", 5, 100, 25)
