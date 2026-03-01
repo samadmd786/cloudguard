@@ -11,3 +11,4 @@ cloudguard-build-plan.txt
 logs/
 result.json
 
+.coverage
