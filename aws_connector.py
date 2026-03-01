@@ -48,11 +48,6 @@ def get_findings(key_id: str, secret: str, severity_filter: list = None,
         client = get_client(key_id, secret, region)
         filters = {
             "RecordState": [{"Value": "ACTIVE", "Comparison": "EQUALS"}],
-            "ComplianceStatus": [
-                {"Value": "FAILED", "Comparison": "EQUALS"},
-                {"Value": "WARNING", "Comparison": "EQUALS"},
-                {"Value": "NOT_AVAILABLE", "Comparison": "EQUALS"},
-            ],
         }
         if severity_filter:
             filters["SeverityLabel"] = [
