@@ -570,7 +570,7 @@ with tab2:
             with ctrl_col1:
                 sev_filter = st.multiselect(
                     "Severity filter",
-                    ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+                    ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATIONAL"],
                     default=[],
                 )
             with ctrl_col2:
@@ -599,18 +599,19 @@ with tab2:
 
             # Summary metric cards
             st.markdown('<div class="section-header">Posture Overview</div>', unsafe_allow_html=True)
-            m1, m2, m3, m4 = st.columns(4)
+            m1, m2, m3, m4, m5 = st.columns(5)
             m1.metric("🔴 Critical", summary.get("CRITICAL", 0))
             m2.metric("🟠 High", summary.get("HIGH", 0))
             m3.metric("🟡 Medium", summary.get("MEDIUM", 0))
             m4.metric("🟢 Low", summary.get("LOW", 0))
+            m5.metric("⚪ Info", summary.get("INFORMATIONAL", 0))
 
             if not findings:
                 st.info("No findings match your current filter.")
             else:
                 st.markdown(f'<div class="section-header">{len(findings)} Findings</div>', unsafe_allow_html=True)
 
-                SEV_COLOR = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢"}
+                SEV_COLOR = {"CRITICAL": "🔴", "HIGH": "🟠", "MEDIUM": "🟡", "LOW": "🟢", "INFORMATIONAL": "⚪"}
                 for idx, f in enumerate(findings):
                     sev = f.get("Severity", {}).get("Label", "UNKNOWN")
                     title = f.get("Title", "Unknown")
