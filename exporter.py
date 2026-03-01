@@ -7,7 +7,20 @@ from datetime import datetime
 
 
 def to_markdown(finding: dict, result: dict) -> str:
-    """Return a full Markdown report string for a finding + analysis."""
+    """
+    Generate a formatted Markdown report from an analyzed finding.
+
+    Combines the raw finding metadata (ID, Resource, Severity) with the
+    Claude-generated analysis (TL;DR, remediation steps) into a readable
+    Markdown document suitable for Jira, GitHub Issues, or Wikis.
+
+    Args:
+        finding (dict): The raw AWS Security Hub finding.
+        result (dict): The structured JSON response from Claude.
+
+    Returns:
+        str: The complete, formatted Markdown report as a string.
+    """
     now = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
     title = finding.get("Title", "Unknown Finding")
     sev = finding.get("Severity", {}).get("Label", "UNKNOWN")

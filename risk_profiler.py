@@ -1,7 +1,10 @@
 """
-Organisational risk profiler.
-Reads all stored findings from ChromaDB and produces a risk score,
-severity breakdown, top recurring issues, and trend direction.
+Organizational Risk Profiler.
+
+This module reads all stored findings from the local ChromaDB vector store
+(populated via `memory_store.py`) and calculates an aggregate risk score,
+severity breakdown, top recurring issues, and trend direction for the
+'Risk Profile' dashboard tab.
 """
 import json
 from datetime import datetime, timezone
@@ -19,8 +22,16 @@ MAX_SCORE_BASELINE = 500
 
 def compute_risk_score(findings: list[dict]) -> int:
     """
-    Score 0-100 based on weighted finding count.
-    CRITICAL contributes 10x more than LOW.
+    Calculate an aggregate risk score (0-100) based on weighted finding counts.
+
+    CRITICAL findings contribute 10x more to the score than LOW findings.
+    The score caps at 100, which corresponds to the `MAX_SCORE_BASELINE`.
+
+    Args:
+        findings (list[dict]): A list of finding dictionaries retrieved from memory.
+
+    Returns:
+        int: The calculated risk score, capped at 100.
     """
     if not findings:
         return 0
@@ -31,8 +42,18 @@ def compute_risk_score(findings: list[dict]) -> int:
 
 def get_profile() -> dict:
     """
-    Compute and return the full org risk profile from stored findings.
-    Returns a dict with: score, label, breakdown, top_issues, trend_hint, total.
+    Compute and return the full organizational risk profile.
+
+    Aggregates all stored findings to generate insights for the UI.
+
+    Returns:
+        dict: A dictionary containing:
+            - 'score' (int): The 0-100 risk score.
+            - 'label' (str): The human-readable risk classification (e.g., 'High Risk').
+            - 'breakdown' (dict): Counts by severity level.
+            - 'top_issues' (list[dict]): The top 5 most frequent finding titles.
+            - 'trend_hint' (str): A static analysis sentence predicting risk direction.
+            - 'total' (int): Total number of analyzed findings in storage.
     """
     findings = get_all(limit=500)
     total = len(findings)

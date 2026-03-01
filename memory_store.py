@@ -1,9 +1,11 @@
 """
-Persistent vector memory for CloudGuard AI.
-Uses sentence-transformers for embeddings + a JSON file as the store.
-No ChromaDB dependency — works on Python 3.14+.
+Persistent Vector Memory Store.
 
-Store lives in .chroma/findings.json (gitignored directory).
+Uses `sentence-transformers` to generate embeddings and a local JSON file
+as the backing store. This natively supports RAG and Risk Profiling without
+requiring a heavier database dependency like ChromaDB or pgvector.
+
+Store location: `.chroma/findings.json` (gitignored)
 """
 import json
 import hashlib
@@ -74,7 +76,20 @@ def _cosine(a: list[float], b: list[float]) -> float:
 
 
 def store(finding: dict, analysis: dict) -> str:
-    """Embed and persist a finding + its analysis. Returns the record ID."""
+    """
+    Embed and persist a finding and its completed analysis.
+
+    Generates a text document combining the finding details and the Claude analysis,
+    embeds it using `sentence-transformers`, and saves the record to the JSON store.
+    If a record with the same finding ID exists, it is overwritten (upsert).
+
+    Args:
+        finding (dict): The raw AWS Security Hub finding.
+        analysis (dict): The parsed JSON analysis from Claude.
+
+    Returns:
+        str: The generated unique document ID, or an empty string if storage failed.
+    """
     if "error" in analysis:
         return ""
     try:
@@ -109,7 +124,19 @@ def store(finding: dict, analysis: dict) -> str:
 
 
 def retrieve_similar(finding: dict, n_results: int = 3) -> list[dict]:
-    """Find the n most similar past findings using cosine similarity."""
+    """
+    Find the most semantically similar past findings to a new finding.
+
+    Embeds the new finding's title and description, then calculates the cosine
+    similarity against all stored embeddings to find historical matches.
+
+    Args:
+        finding (dict): The raw AWS Security Hub finding to compare against.
+        n_results (int, optional): The maximum number of similar findings to return. Defaults to 3.
+
+    Returns:
+        list[dict]: A list of the most similar past findings and their similarity scores.
+    """
     try:
         records = _load_store()
         if not records:
@@ -154,7 +181,17 @@ def retrieve_similar(finding: dict, n_results: int = 3) -> list[dict]:
 
 
 def get_all(limit: int = 500) -> list[dict]:
-    """Return metadata for all stored findings (no embeddings)."""
+    """
+    Return metadata for all stored findings, stripped of large embeddings.
+
+    Used by the `risk_profiler` to aggregate org-wide statistics.
+
+    Args:
+        limit (int, optional): Maximum number of recent records to return. Defaults to 500.
+
+    Returns:
+        list[dict]: A list of stored finding metadata dictionaries.
+    """
     try:
         records = _load_store()
         return [{k: v for k, v in r.items() if k != "embedding"} for r in records[-limit:]]
@@ -164,5 +201,10 @@ def get_all(limit: int = 500) -> list[dict]:
 
 
 def count() -> int:
-    """Return total number of stored findings."""
+    """
+    Return the total number of findings currently stored in memory.
+
+    Returns:
+        int: The integer count of stored findings.
+    """
     return len(_load_store())

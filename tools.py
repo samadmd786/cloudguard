@@ -1,3 +1,11 @@
+"""
+External Tool Integrations for Agent Analysis.
+
+This module defines the external APIs and local lookups that Claude can
+invoke autonomously when analyzing a finding in `agent_analyzer.py`.
+Includes NVD CVE lookups, AWS official documentation fetching, and
+local compliance framework mapping.
+"""
 import time
 import requests
 from logger import get_logger
@@ -59,8 +67,15 @@ CONTROL_DOCS = {
 
 def lookup_cves(misconfiguration_type: str, service: str) -> dict:
     """
-    Tool 1: Search NVD for CVEs related to an AWS misconfiguration.
-    Free, no API key required. Rate limit: 5 requests / 30 seconds.
+    Search the National Vulnerability Database (NVD) for related CVEs.
+
+    Args:
+        misconfiguration_type (str): The type of issue (e.g., "public access").
+        service (str): The AWS service involved (e.g., "S3").
+
+    Returns:
+        dict: A dictionary containing the query used, a list of up to 3 CVE
+              results (with descriptions and CVSS scores), and any errors.
     """
     query = f"AWS {service} {misconfiguration_type}"
     url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -99,8 +114,14 @@ def lookup_cves(misconfiguration_type: str, service: str) -> dict:
 
 def fetch_aws_remediation(control_id: str) -> dict:
     """
-    Tool 2: Fetch official AWS remediation guidance for a Security Hub control.
-    Results are cached to avoid redundant fetches.
+    Fetch the official AWS remediation documentation URL for a Security Hub control.
+
+    Args:
+        control_id (str): The Security Hub control identifier (e.g., "S3.2").
+
+    Returns:
+        dict: A dictionary containing the control ID, the official AWS URL,
+              and whether it was fetched "live" or from the local "cache".
     """
     service = control_id.split(".")[0] if "." in control_id else control_id
     url = CONTROL_DOCS.get(service, CONTROL_DOCS.get("IAM"))
@@ -127,8 +148,18 @@ def fetch_aws_remediation(control_id: str) -> dict:
 
 def check_compliance(finding_type: str, service: str) -> dict:
     """
-    Tool 3: Return compliance control IDs for a finding type.
-    Pure local lookup — zero latency, zero cost.
+    Look up compliance control IDs relevant to a specific AWS misconfiguration.
+
+    Provides a static mapping of common AWS services to controls across
+    CIS, PCI DSS, SOC 2, NIST SP 800-53, and ISO 27001.
+
+    Args:
+        finding_type (str): The type of issue found.
+        service (str): The AWS service involved (e.g., "ec2").
+
+    Returns:
+        dict: A dictionary mapping the service and findings to a list of
+              compliance control objects.
     """
     key = service.lower()
     mapping = COMPLIANCE_MAP.get(key, COMPLIANCE_MAP["default"])
@@ -182,7 +213,16 @@ TOOL_SCHEMAS = [
 
 
 def execute_tool(name: str, inputs: dict) -> str:
-    """Dispatch a tool call from the agent loop and return result as a JSON string."""
+    """
+    Dispatch an agent-requested tool call to the corresponding local function.
+
+    Args:
+        name (str): The name of the tool to execute.
+        inputs (dict): The arguments provided by Claude for the tool.
+
+    Returns:
+        str: The JSON-serialized result of the tool execution.
+    """
     import json
     if name == "lookup_cves":
         result = lookup_cves(inputs["misconfiguration_type"], inputs["service"])

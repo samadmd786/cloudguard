@@ -1,3 +1,11 @@
+"""
+Standard Security Finding Analyzer.
+
+This module provides the core `analyze_finding` function, which takes a raw
+AWS Security Hub finding (JSON) and sends it to the Anthropic Claude API using
+a zero-shot prompt. It forces Claude to return a structured JSON response
+detailing the risk, business impact, and specific remediation steps.
+"""
 import os
 import json
 import anthropic
@@ -41,8 +49,19 @@ Rules:
 
 def analyze_finding(finding: dict, api_key: str = None) -> dict:
     """
-    Send a Security Hub finding to Claude and return structured analysis.
-    Reads API key from environment if not passed directly.
+    Send a Security Hub finding to Claude and return a structured analysis.
+
+    This function uses a strict system prompt to force the LLM to return
+    a valid JSON object matching the `SYSTEM_PROMPT` schema.
+
+    Args:
+        finding (dict): The raw AWS Security Hub finding dictionary.
+        api_key (str, optional): Anthropic API key. If not provided, it falls
+            back to the `ANTHROPIC_API_KEY` environment variable.
+
+    Returns:
+        dict: The structured analysis parsed from Claude's JSON response, or
+              a dictionary containing an 'error' key if the API call fails.
     """
     key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -58,6 +77,9 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
 
     finding_json = json.dumps(finding, indent=2)
 
+    # Call the Anthropic API with the finding injected into the user prompt.
+    # We use a relatively high max_tokens (4000) to ensure the complete JSON
+    # object (especially the fix_steps array) is returned without truncation.
     try:
         response = client.messages.create(
             model="claude-sonnet-4-5",

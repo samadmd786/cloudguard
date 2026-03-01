@@ -13,7 +13,7 @@ CloudGuard AI transforms raw Security Hub findings into plain-English risk repor
 ### MVP 1 — Manual Analyzer (public)
 - Paste, upload, or select sample Security Hub findings
 - Claude-powered analysis: TL;DR, business impact, step-by-step remediation, compliance tags
-- Export reports as **Markdown** or **PDF**
+- Export reports as **Markdown**
 - Rate limited (5 analyses/hour per session)
 
 ### MVP 2 — Live AWS Integration
@@ -42,7 +42,7 @@ cloudguard/
 ├── rag_analyzer.py        # RAG-enhanced analysis using past findings
 ├── memory_store.py        # JSON vector store (sentence-transformers)
 ├── risk_profiler.py       # Org risk score + trend analysis
-├── exporter.py            # Markdown + PDF report generation
+├── exporter.py            # Markdown report generation
 ├── logger.py              # Rotating file + console logger
 ├── mvp1/                  # Standalone public deployment (Tab 1 only)
 ├── sample_findings/       # 5 real-world Security Hub finding JSONs
@@ -131,7 +131,7 @@ To deploy your own:
 | LLM | Claude (Anthropic) via `anthropic` SDK |
 | AWS | boto3 + Security Hub |
 | Memory | sentence-transformers + JSON vector store |
-| PDF export | fpdf2 |
+
 | Tests | pytest + pytest-mock |
 
 ---

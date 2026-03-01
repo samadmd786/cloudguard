@@ -1,3 +1,11 @@
+"""
+Agentic Security Analyzer.
+
+This module implements a multi-turn ReAct-style agent using Claude's tool-use
+capabilities. For HIGH and CRITICAL findings, the agent will autonomously query
+external APIs (via the `tools.py` module) to fetch CVE details, AWS documentation,
+and compliance mappings before finalizing its structured JSON analysis.
+"""
 import os
 import json
 import anthropic
@@ -26,9 +34,24 @@ Do NOT include tool results as raw JSON in your response — synthesize them int
 
 def analyze_with_agent(finding: dict, api_key: str = None, max_tool_rounds: int = 5) -> dict:
     """
-    Agent loop: Claude calls tools autonomously to enrich the analysis,
-    then returns the same structured dict as analyze_finding().
-    For LOW/MEDIUM findings, falls back to simple analysis.
+    Run an autonomous agent loop to enrich the analysis of a Security Hub finding.
+
+    The model is provided with a set of tools (e.g., `lookup_cves`, `check_compliance`).
+    If the finding severity is HIGH or CRITICAL, the agent loop executes, allowing Claude
+    to call tools and receive their output until it decides it has enough information to
+    generate the final JSON response.
+
+    If the finding is LOW or MEDIUM severity, it falls back to the standard, non-agentic
+    `analyze_finding` behavior to save time and API costs.
+
+    Args:
+        finding (dict): The raw AWS Security Hub finding dictionary.
+        api_key (str, optional): Anthropic API key.
+        max_tool_rounds (int, optional): Maximum number of tool-call iterations before
+            forcing the agent to stop and return an error. Defaults to 5.
+
+    Returns:
+        dict: The structured analysis parsed from Claude's JSON response, or an error payload.
     """
     sev = finding.get("Severity", {}).get("Label", "LOW")
     finding_id = finding.get("Id", "unknown")

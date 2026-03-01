@@ -1,7 +1,10 @@
 """
-RAG-enhanced analyzer.
-Before calling Claude, retrieves similar past findings from memory
-and injects them as context so reports improve over time.
+RAG-Enhanced Security Analyzer.
+
+This module retrieves similar past findings from the local `memory_store`
+(ChromaDB vector store) and injects them into the Claude system prompt before
+running the analysis. This allows the model to identify recurring patterns
+and tailor remediation steps based on the organization's history.
 """
 import json
 from analyzer import analyze_finding, SYSTEM_PROMPT
@@ -25,7 +28,15 @@ Now analyse the new finding below. Return the same structured JSON format.
 
 
 def _build_context(similar: list[dict]) -> str:
-    """Format retrieved similar findings as readable context block."""
+    """
+    Format retrieved similar findings into a readable context block.
+
+    Args:
+        similar (list[dict]): A list of past findings retrieved from memory.
+
+    Returns:
+        str: A formatted string listing past findings, or a fallback message if empty.
+    """
     if not similar:
         return "No similar past findings."
     lines = []
@@ -39,12 +50,21 @@ def _build_context(similar: list[dict]) -> str:
 
 def analyze_with_rag(finding: dict, api_key: str = None) -> dict:
     """
-    RAG-enhanced analysis:
-    1. Retrieve similar past findings from ChromaDB
-    2. Inject them as context into the system prompt
-    3. Run standard Claude analysis
-    4. Store the new result back to memory
-    Returns the same structured dict as analyze_finding().
+    Perform a RAG-enhanced analysis of a Security Hub finding.
+
+    Workflow:
+    1. Retrieve up to 3 similar past findings from the vector database.
+    2. Inject them as context into the `RAG_PREAMBLE` system prompt.
+    3. Run standard Claude analysis using the enriched prompt.
+    4. Store the new successful result back into memory for future use.
+
+    Args:
+        finding (dict): The raw AWS Security Hub finding dictionary.
+        api_key (str, optional): Anthropic API key.
+
+    Returns:
+        dict: The structured analysis parsed from Claude's JSON response,
+              including a 'rag_context_count' metric.
     """
     finding_id = finding.get("Id", "unknown")
     log.info(f"RAG analysis started | id={finding_id}")

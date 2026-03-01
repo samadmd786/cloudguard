@@ -1,3 +1,9 @@
+"""
+AWS Security Hub Connector.
+
+Manages interactions with the AWS Security Hub and STS APIs to verify
+credentials, fetch active findings, and aggregate security summaries.
+"""
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from logger import get_logger
@@ -6,7 +12,17 @@ log = get_logger(__name__)
 
 
 def get_client(key_id: str, secret: str, region: str = "us-east-1"):
-    """Build a Security Hub boto3 client from explicit credentials."""
+    """
+    Build a Security Hub boto3 client from explicit credentials.
+
+    Args:
+        key_id (str): AWS Access Key ID.
+        secret (str): AWS Secret Access Key.
+        region (str, optional): AWS region. Defaults to "us-east-1".
+
+    Returns:
+        boto3.client: A configured Security Hub client.
+    """
     return boto3.client(
         "securityhub",
         aws_access_key_id=key_id,
@@ -18,8 +34,21 @@ def get_client(key_id: str, secret: str, region: str = "us-east-1"):
 def verify_aws_connection(key_id: str, secret: str, region: str = "us-east-1") -> dict:
     """
     Verify AWS credentials and Security Hub access.
-    Returns {"ok": True, "account_id": "...", "region": "..."} on success
-    or {"ok": False, "error": "..."} on failure.
+
+    This function attempts to call `describe_hub` to ensure Security Hub
+    is enabled in the specified region, and uses STS to fetch the account ID.
+
+    Args:
+        key_id (str): AWS Access Key ID.
+        secret (str): AWS Secret Access Key.
+        region (str, optional): AWS region to test against. Defaults to "us-east-1".
+
+    Returns:
+        dict: A dictionary containing:
+            - 'ok' (bool): True if connection and access are successful.
+            - 'account_id' (str, optional): The AWS Account ID if successful.
+            - 'region' (str, optional): The verified region if successful.
+            - 'error' (str, optional): Error message if 'ok' is False.
     """
     try:
         client = get_client(key_id, secret, region)
@@ -43,7 +72,20 @@ def verify_aws_connection(key_id: str, secret: str, region: str = "us-east-1") -
 
 def get_findings(key_id: str, secret: str, severity_filter: list = None,
                  max_results: int = 50, region: str = "us-east-1") -> list[dict]:
-    """Pull active, failed findings from Security Hub."""
+    """
+    Pull active findings from Security Hub.
+
+    Args:
+        key_id (str): AWS Access Key ID.
+        secret (str): AWS Secret Access Key.
+        severity_filter (list, optional): List of severity labels (e.g., ["HIGH", "CRITICAL"])
+            to filter the results. If None, all severities are returned. Defaults to None.
+        max_results (int, optional): Maximum number of findings to retrieve. Defaults to 50.
+        region (str, optional): AWS region to pull from. Defaults to "us-east-1".
+
+    Returns:
+        list[dict]: A list of finding dictionaries retrieved from Security Hub.
+    """
     try:
         client = get_client(key_id, secret, region)
         filters = {
@@ -54,6 +96,7 @@ def get_findings(key_id: str, secret: str, severity_filter: list = None,
                 {"Value": sev, "Comparison": "EQUALS"} for sev in severity_filter
             ]
 
+        # Use paginator to efficiently fetch findings across multiple API calls if needed
         findings = []
         paginator = client.get_paginator("get_findings")
         for page in paginator.paginate(
@@ -79,7 +122,21 @@ def get_findings(key_id: str, secret: str, severity_filter: list = None,
 
 
 def get_summary(key_id: str, secret: str, region: str = "us-east-1") -> dict:
-    """Return finding counts grouped by severity for the dashboard header."""
+    """
+    Return finding counts grouped by severity for the dashboard header.
+
+    Fetches up to 200 recent findings and calculates an aggregate count
+    across all severities, including INFORMATIONAL items.
+
+    Args:
+        key_id (str): AWS Access Key ID.
+        secret (str): AWS Secret Access Key.
+        region (str, optional): AWS region. Defaults to "us-east-1".
+
+    Returns:
+        dict: A dictionary mapping severity labels to their respective counts,
+              plus a 'total' key for the overall sum.
+    """
     all_findings = get_findings(key_id, secret, max_results=200, region=region)
     summary = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0, "INFORMATIONAL": 0, "total": 0}
     for f in all_findings:

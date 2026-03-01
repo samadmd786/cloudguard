@@ -1,3 +1,11 @@
+"""
+Main Streamlit application for CloudGuard AI.
+
+Provides a 3-tab interface for analyzing AWS Security Hub findings:
+1. Manual Input: Analyze single findings via JSON paste or file upload.
+2. Live AWS Findings: Connect to an AWS account and fetch active findings.
+3. Risk Profile: View an organizational risk score and trend analysis based on past findings.
+"""
 import os
 import json
 from datetime import datetime
@@ -201,7 +209,12 @@ SAMPLE_DIR = "sample_findings"
 SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 
 def get_api_key() -> str:
-    """Read API key from environment, then Streamlit secrets, then sidebar input."""
+    """
+    Retrieve the Anthropic API key from the environment or Streamlit secrets.
+
+    Returns:
+        str: The API key, or an empty string if not found.
+    """
     key = os.environ.get("ANTHROPIC_API_KEY", "")
     if not key:
         try:
@@ -211,7 +224,13 @@ def get_api_key() -> str:
     return key
 
 def add_activity(message: str, level: str = "info"):
-    """Append a timestamped event to the session activity log."""
+    """
+    Append a timestamped event to the session activity log.
+
+    Args:
+        message (str): The activity message to log.
+        level (str, optional): The severity level ('info' or 'error'). Defaults to "info".
+    """
     if "activity" not in st.session_state:
         st.session_state["activity"] = []
     icon = "🟢" if level == "info" else "🔴"
@@ -229,8 +248,11 @@ RATE_WINDOW = 3600       # seconds
 def check_rate_limit() -> bool:
     """
     Check if the current session has exceeded the rate limit.
-    Returns True (and shows a warning) if the limit is reached.
-    Caller should return / st.stop() when this returns True.
+
+    Maintains a rolling window of recent API calls in the session state.
+
+    Returns:
+        bool: True if the rate limit has been exceeded, False otherwise.
     """
     import time
     now = time.time()
@@ -249,6 +271,12 @@ def check_rate_limit() -> bool:
     return False
 
 def list_samples() -> list[str]:
+    """
+    List available sample finding JSON files from the predefined directory.
+
+    Returns:
+        list[str]: A list of filenames, sorted by severity (CRITICAL first).
+    """
     if not os.path.isdir(SAMPLE_DIR):
         return []
     files = [f for f in os.listdir(SAMPLE_DIR) if f.endswith(".json")]
@@ -263,7 +291,13 @@ def priority_span(p: str) -> str:
     return f'<span class="priority-{p}">⚡ {p}</span>'
 
 def render_analysis(finding: dict, result: dict):
-    """Render the structured analysis result."""
+    """
+    Render the structured analysis result onto the Streamlit UI.
+
+    Args:
+        finding (dict): The original raw finding from Security Hub.
+        result (dict): The parsed JSON analysis from the Claude model.
+    """
     sev = finding.get("Severity", {}).get("Label", "UNKNOWN")
     title = finding.get("Title", "Unknown Finding")
 
