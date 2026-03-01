@@ -65,13 +65,11 @@ def to_markdown(finding: dict, result: dict) -> str:
     if fix_steps:
         lines += [f"## Remediation Steps", f""]
         for i, step in enumerate(fix_steps, 1):
-            lines.append(f"### Step {i}: {step.get('action', '')}")
-            lines.append(f"")
-            lines.append(step.get("detail", ""))
-            if step.get("cli"):
+            lines.append(f"### Step {i}: {step.get('step', '')}")
+            if step.get("cli_command"):
                 lines.append(f"")
                 lines.append("```bash")
-                lines.append(step["cli"])
+                lines.append(step["cli_command"])
                 lines.append("```")
             lines.append(f"")
 
@@ -199,13 +197,11 @@ def to_pdf(finding: dict, result: dict) -> bytes:
         section("Remediation Steps")
         for i, step in enumerate(fix_steps, 1):
             pdf.set_font("Helvetica", "B", 10)
-            pdf.multi_cell(0, 6, f"Step {i}: {step.get('action', '')}")
-            pdf.set_font("Helvetica", "", 9)
-            pdf.multi_cell(0, 5, step.get("detail", ""))
-            if step.get("cli"):
+            pdf.multi_cell(0, 6, f"Step {i}: {step.get('step', '')}")
+            if step.get("cli_command"):
                 pdf.set_fill_color(230, 235, 245)
                 pdf.set_font("Courier", "", 8)
-                pdf.multi_cell(0, 5, step["cli"], fill=True)
+                pdf.multi_cell(0, 5, step["cli_command"], fill=True)
             pdf.ln(3)
 
     # Compliance
