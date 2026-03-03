@@ -2,7 +2,7 @@
 
 **AI-powered AWS Security Hub misconfiguration analyzer powered by Claude.**
 
-CloudGuard AI transforms raw Security Hub findings into plain-English risk reports with remediation steps, compliance mapping, CVE lookups, and an org-level risk profile — all in a Streamlit UI.
+CloudGuard AI transforms raw Security Hub findings into plain-English risk reports with actionable remediation steps, authoritative citations, compliance mapping, CVE lookups, and an org-level risk profile — all in a Streamlit UI.
 
 🔗 **Live demo (MVP 1):** [cloudguard.streamlit.app](https://cloudguard.streamlit.app)
 
@@ -13,20 +13,22 @@ CloudGuard AI transforms raw Security Hub findings into plain-English risk repor
 ### MVP 1 — Manual Analyzer (public)
 - Paste, upload, or select sample Security Hub findings
 - Claude-powered analysis: TL;DR, business impact, step-by-step remediation, compliance tags
-- Export reports as **Markdown**
+- **Authoritative citations** linking each fix to AWS docs, NVD CVEs, CIS benchmarks, and NIST controls
+- Export reports as **Markdown** (including citations)
 - Rate limited (5 analyses/hour per session)
 
 ### MVP 2 — Live AWS Integration
 - Connect to your AWS account via sidebar credentials
 - Live pull from **Security Hub** with severity filtering and pagination
-- **Agent mode** for HIGH/CRITICAL findings: chains CVE lookup, AWS docs, and compliance checks via Claude tool-use
+- **Agent mode** for HIGH/CRITICAL findings: chains CVE lookup (with NVD URLs), AWS docs, and compliance checks via Claude tool-use
+- Smart resource labeling — hides generic account-level ARNs, shows only meaningful resource names
 - Per-session credential isolation — your AWS keys never touch the server
 
 ### MVP 3 — Risk Intelligence
 - **RAG analysis** — retrieves similar past findings before calling Claude for richer, org-aware reports
-- **Risk Profile tab** — 0–100 org risk score, severity breakdown, top recurring issues, finding history
+- **Risk Profile tab** — 0–100 org risk score using weighted-average severity, severity breakdown, top recurring issues, finding history
 - Local vector memory (`sentence-transformers` + cosine similarity) — no cloud vector DB required
-- Every successful analysis auto-stores to memory
+- Every successful analysis auto-stores to memory for future RAG enrichment
 
 ---
 
@@ -35,18 +37,19 @@ CloudGuard AI transforms raw Security Hub findings into plain-English risk repor
 ```
 cloudguard/
 ├── app.py                 # Main Streamlit app (3 tabs)
-├── analyzer.py            # Core Claude API call → structured JSON
+├── analyzer.py            # Core Claude API call → structured JSON with citations
 ├── agent_analyzer.py      # Claude tool-use loop for HIGH/CRITICAL
 ├── aws_connector.py       # boto3 Security Hub client
-├── tools.py               # Agent tools: CVE lookup, AWS docs, compliance
+├── tools.py               # Agent tools: CVE lookup (with NVD URLs), AWS docs, compliance
 ├── rag_analyzer.py        # RAG-enhanced analysis using past findings
 ├── memory_store.py        # JSON vector store (sentence-transformers)
-├── risk_profiler.py       # Org risk score + trend analysis
-├── exporter.py            # Markdown report generation
+├── risk_profiler.py       # Org risk score (weighted-average) + trend analysis
+├── exporter.py            # Markdown report generation with citations
 ├── logger.py              # Rotating file + console logger
+├── run.sh                 # Launch script (uses venv)
 ├── mvp1/                  # Standalone public deployment (Tab 1 only)
 ├── sample_findings/       # 5 real-world Security Hub finding JSONs
-└── tests/                 # pytest unit tests
+└── tests/                 # pytest unit tests (20+ tests)
 ```
 
 ---
@@ -54,7 +57,7 @@ cloudguard/
 ## Quickstart
 
 ### Prerequisites
-- Python 3.11–3.13
+- Python 3.11+
 - Anthropic API key ([console.anthropic.com](https://console.anthropic.com))
 - *(Optional)* AWS account with Security Hub enabled
 
@@ -77,7 +80,7 @@ AWS_DEFAULT_REGION=us-east-1
 
 Run:
 ```bash
-streamlit run app.py
+./run.sh
 ```
 
 ---
@@ -104,10 +107,10 @@ streamlit run app.py
 ## Running Tests
 
 ```bash
-PYTHONPATH=. pytest tests/ -v
+./venv/bin/python3 -m pytest tests/ -v
 ```
 
-Tests cover `analyzer.py`, `aws_connector.py`, and `agent_analyzer.py` using mocked boto3 and Anthropic clients.
+Tests cover `analyzer.py`, `aws_connector.py`, `agent_analyzer.py`, `exporter.py`, `risk_profiler.py`, `memory_store.py`, and `tools.py` using mocked boto3 and Anthropic clients.
 
 ---
 
@@ -131,13 +134,13 @@ To deploy your own:
 | LLM | Claude (Anthropic) via `anthropic` SDK |
 | AWS | boto3 + Security Hub |
 | Memory | sentence-transformers + JSON vector store |
-
 | Tests | pytest + pytest-mock |
 
 ---
 
 ## Roadmap
 
+- [ ] Batch analyze all live findings in one click
 - [ ] Scheduler — auto-poll Security Hub every 60 min
 - [ ] Slack/email webhook on new CRITICAL findings  
 - [ ] Multi-region scan support
