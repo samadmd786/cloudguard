@@ -29,7 +29,8 @@ For CRITICAL and HIGH severity findings, you MUST call all three tools before pr
 For MEDIUM and LOW severity findings, only call check_compliance.
 
 After gathering tool results, produce the same structured JSON output as before.
-Do NOT include tool results as raw JSON in your response — synthesize them into the structured fields."""
+Do NOT include tool results as raw JSON in your response — synthesize them into the structured fields.
+IMPORTANT: Populate the "citations" array using URLs from tool results — include NVD CVE page URLs from lookup_cves, AWS documentation URLs from fetch_aws_remediation, and any other authoritative sources."""
 
 
 def analyze_with_agent(finding: dict, api_key: str = None, max_tool_rounds: int = 5) -> dict:

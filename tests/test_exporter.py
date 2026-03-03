@@ -77,3 +77,58 @@ def test_to_markdown_missing_fields():
     assert "| **Finding ID** | `—` |" in md
     assert "## Remediation Steps" not in md  # Should completely skip if empty
     assert "## Compliance Frameworks" not in md # Should completely skip if empty
+
+def test_to_markdown_with_citations():
+    """Test that citations appear in the markdown export."""
+    finding = {
+        "Id": "arn:aws:securityhub:us-east-1:123456789012:finding/uuid",
+        "Title": "S3 bucket public access",
+        "Severity": {"Label": "HIGH"},
+        "Resources": [{"Id": "arn:aws:s3:::test-bucket"}]
+    }
+
+    result = {
+        "plain_english": "Bucket is public.",
+        "why_it_matters": "Data exposure.",
+        "business_impact": {
+            "data_risk": "High",
+            "financial_risk": "Medium",
+            "compliance_risk": "High"
+        },
+        "fix_steps": [
+            {"step": "Block public access", "cli_command": "aws s3api put-public-access-block --bucket test-bucket"},
+            {"step": "Verify", "cli_command": ""}
+        ],
+        "citations": [
+            {
+                "title": "AWS S3 Block Public Access",
+                "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html",
+                "source": "AWS Documentation"
+            },
+            {
+                "title": "CIS Benchmark 2.1.5",
+                "url": "https://www.cisecurity.org/benchmark/amazon_web_services",
+                "source": "CIS Benchmark"
+            }
+        ],
+        "compliance_frameworks": ["CIS 2.1.5"],
+        "priority": "Immediate",
+        "tldr": "Fix it."
+    }
+
+    md = to_markdown(finding, result)
+    assert "## References & Citations" in md
+    assert "AWS S3 Block Public Access" in md
+    assert "https://docs.aws.amazon.com/" in md
+    assert "(AWS Documentation)" in md
+    assert "CIS Benchmark 2.1.5" in md
+    assert "(CIS Benchmark)" in md
+
+def test_to_markdown_no_citations():
+    """Test that citations section is omitted when no citations exist."""
+    finding = {"Title": "No citations finding"}
+    result = {"tldr": "Test", "citations": []}
+
+    md = to_markdown(finding, result)
+    assert "## References & Citations" not in md
+

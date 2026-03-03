@@ -97,11 +97,13 @@ def lookup_cves(misconfiguration_type: str, service: str) -> dict:
                 if key in metrics:
                     score = metrics[key][0]["cvssData"].get("baseScore")
                     break
+            cve_id = cve.get("id", "")
             cves.append({
-                "id": cve.get("id"),
+                "id": cve_id,
                 "description": desc[:300],
                 "cvss_score": score,
                 "published": cve.get("published", "")[:10],
+                "nvd_url": f"https://nvd.nist.gov/vuln/detail/{cve_id}" if cve_id else "",
             })
 
         log.info(f"CVE lookup: {len(cves)} results for '{query}'")

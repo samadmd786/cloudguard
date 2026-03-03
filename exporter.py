@@ -94,6 +94,20 @@ def to_markdown(finding: dict, result: dict) -> str:
             f"",
         ]
 
+    citations = result.get("citations", [])
+    if citations:
+        lines += [f"## References & Citations", f""]
+        for i, cite in enumerate(citations, 1):
+            title = cite.get("title", "Reference")
+            url = cite.get("url", "")
+            source = cite.get("source", "")
+            source_label = f" ({source})" if source else ""
+            if url:
+                lines.append(f"{i}. [{title}]({url}){source_label}")
+            else:
+                lines.append(f"{i}. {title}{source_label}")
+        lines.append(f"")
+
     lines += [
         f"---",
         f"",

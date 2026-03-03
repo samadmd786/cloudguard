@@ -16,15 +16,14 @@ def test_compute_risk_score_weighted():
         {"severity": "LOW"},       # +1
         {"severity": "INFORMATIONAL"} # +1 (fallback)
     ]
-    # Total raw score = 31.
-    # Formula: min(int((31 / 500) * 100), 100) = 6
+    # Total raw = 31, avg = 31/6 = 5.17, base = 51, volume_boost = 5 → 56
     score = risk_profiler.compute_risk_score(findings)
-    assert score == 6
+    assert score == 56
 
 def test_compute_risk_score_caps_out():
     """Test the risk score computation caps at a maximum of 100."""
     findings = [{"severity": "CRITICAL"} for _ in range(100)]
-    # raw score = 1000. 1000/500 * 100 = 200 -> capped at 100.
+    # avg = 10/10 = 1.0, base = 100, volume_boost = 20 → capped at 100
     score = risk_profiler.compute_risk_score(findings)
     assert score == 100
 
@@ -42,8 +41,8 @@ def test_get_profile_no_data(mock_get_all):
 @patch("risk_profiler.get_all")
 def test_get_profile_with_data(mock_get_all):
     """Test generating a populated organizational risk profile."""
-    # Provide enough CRITICALs to trip the "Critical Risk" label (score >= 70)
-    # We need roughly 350 raw score -> 35 CRITICALs.
+    # With the weighted-average formula, even a handful of CRITICALs will
+    # push the score above 70. 40 CRITICALs easily reaches Critical Risk.
     findings = [{"severity": "CRITICAL", "title": "Bad S3 Bucket"} for _ in range(40)]
     
     # Add a few other severity findings

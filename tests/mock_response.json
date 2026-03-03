@@ -24,6 +24,28 @@
             "cli_command": ""
         }
     ],
+    "citations": [
+        {
+            "title": "AWS EC2 Security Group Rules Reference",
+            "url": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html",
+            "source": "AWS Documentation"
+        },
+        {
+            "title": "CIS Amazon Web Services Foundations Benchmark v1.5 — Control 4.1",
+            "url": "https://www.cisecurity.org/benchmark/amazon_web_services",
+            "source": "CIS Benchmark"
+        },
+        {
+            "title": "AWS Security Hub EC2 Controls",
+            "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/ec2-controls.html",
+            "source": "AWS Documentation"
+        },
+        {
+            "title": "NIST SP 800-53 Rev.5 — AC-17 Remote Access",
+            "url": "https://csrc.nist.gov/publications/detail/sp/800-53/rev-5/final",
+            "source": "NIST"
+        }
+    ],
     "compliance_frameworks": [
         "CIS AWS Foundations 4.1",
         "PCI DSS v3.2.1/1.2.1",

@@ -184,6 +184,40 @@ st.markdown("""
   font-weight: 500;
 }
 
+/* Citation card */
+.citation-card {
+  background: linear-gradient(135deg, #0f1a2e, #0d1525);
+  border: 1px solid rgba(99,179,255,0.1);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  transition: border-color 0.2s, transform 0.15s;
+}
+.citation-card:hover {
+  border-color: rgba(99,179,255,0.35);
+  transform: translateX(4px);
+}
+.citation-card a {
+  color: #63b3ff;
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+.citation-card a:hover { text-decoration: underline; }
+.citation-source {
+  display: inline-block;
+  background: rgba(167,139,250,0.1);
+  color: #a78bfa;
+  border: 1px solid rgba(167,139,250,0.25);
+  border-radius: 8px;
+  padding: 1px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
 /* Raw JSON panel */
 .json-panel {
   background: #0d1220;
@@ -348,6 +382,22 @@ def render_analysis(finding: dict, result: dict):
         st.markdown('<div class="section-header">Compliance frameworks</div>', unsafe_allow_html=True)
         tags_html = " ".join(f'<span class="tag">{f}</span>' for f in frameworks)
         st.markdown(tags_html, unsafe_allow_html=True)
+
+    # Citations & References
+    citations = result.get("citations", [])
+    if citations:
+        st.markdown('<div class="section-header">Citations & References</div>', unsafe_allow_html=True)
+        for cite in citations:
+            title = cite.get("title", "Reference")
+            url = cite.get("url", "#")
+            source = cite.get("source", "")
+            source_badge = f'<span class="citation-source">{source}</span>' if source else ""
+            st.markdown(
+                f'<div class="citation-card">'
+                f'<a href="{url}" target="_blank">📎 {title}</a>'
+                f'{source_badge}</div>',
+                unsafe_allow_html=True,
+            )
 
     # Export buttons
     st.markdown('<div class="section-header">Export report</div>', unsafe_allow_html=True)
@@ -644,11 +694,28 @@ with tab2:
             for idx, f in enumerate(findings):
                 sev = f.get("Severity", {}).get("Label", "UNKNOWN")
                 title = f.get("Title", "Unknown")
-                resource = (f.get("Resources") or [{}])[0].get("Id", "—")[-60:]
                 fid = f.get("Id", str(idx))
 
+                # Build a human-readable resource label (skip for account-level findings)
+                res_obj = (f.get("Resources") or [{}])[0]
+                res_id = res_obj.get("Id", "")
+                res_type = res_obj.get("Type", "")
+                is_account_level = (
+                    not res_id
+                    or "Account" in res_id
+                    or res_type == "AwsAccount"
+                )
+
+                if not is_account_level and "::" in res_id:
+                    resource_label = res_id.split(":")[-1] or res_id[-60:]
+                elif not is_account_level:
+                    resource_label = res_id[-60:]
+                else:
+                    resource_label = None
+
                 with st.expander(f"{SEV_COLOR.get(sev, '')} {sev} — {title}", expanded=False):
-                    st.caption(f"Resource: `{resource}`")
+                    if resource_label:
+                        st.caption(f"Resource: `{resource_label}`")
                     cache_key = f"live_{fid}"
 
                     if cache_key in st.session_state:

@@ -16,16 +16,15 @@ log = get_logger(__name__)
 # Severity weights for risk score calculation
 SEV_WEIGHT = {"CRITICAL": 10, "HIGH": 6, "MEDIUM": 3, "LOW": 1}
 
-# Max possible score for normalisation (assumes 50 critical findings = 500 pts -> 100)
-MAX_SCORE_BASELINE = 500
-
 
 def compute_risk_score(findings: list[dict]) -> int:
     """
-    Calculate an aggregate risk score (0-100) based on weighted finding counts.
+    Calculate an aggregate risk score (0-100) based on average severity.
 
-    CRITICAL findings contribute 10x more to the score than LOW findings.
-    The score caps at 100, which corresponds to the `MAX_SCORE_BASELINE`.
+    Uses a weighted-average approach: the base score reflects the average
+    severity of all findings (all-CRITICAL = 100, all-LOW = 10). A small
+    volume boost (+1 per extra finding, capped at +20) ensures that having
+    more unresolved findings pushes the score higher.
 
     Args:
         findings (list[dict]): A list of finding dictionaries retrieved from memory.
@@ -35,9 +34,16 @@ def compute_risk_score(findings: list[dict]) -> int:
     """
     if not findings:
         return 0
+    total = len(findings)
     raw = sum(SEV_WEIGHT.get(f.get("severity", "LOW"), 1) for f in findings)
-    score = min(int((raw / MAX_SCORE_BASELINE) * 100), 100)
-    return score
+
+    # Average severity weight (0-10) normalised to 0-100
+    base_score = int((raw / total / 10) * 100)
+
+    # More unresolved findings = slightly higher risk, capped at +20
+    volume_boost = min(total - 1, 20)
+
+    return min(100, base_score + volume_boost)
 
 
 def get_profile() -> dict:

@@ -35,6 +35,13 @@ Your JSON response must contain exactly these fields:
       "cli_command": "The exact AWS CLI command to fix it, or empty string if not applicable."
     }
   ],
+  "citations": [
+    {
+      "title": "Short descriptive label, e.g. 'AWS S3 Block Public Access'",
+      "url": "The official URL for this reference, e.g. https://docs.aws.amazon.com/...",
+      "source": "One of: AWS Documentation, NVD, CIS Benchmark, NIST, PCI DSS, AWS Security Blog, AWS Well-Architected"
+    }
+  ],
   "compliance_frameworks": ["List of specific control IDs, e.g. CIS 2.3, PCI DSS 1.3.6, NIST AC-3"],
   "priority": "One of: Immediate, Soon, Planned",
   "tldr": "One sentence written for a non-technical executive explaining the risk and urgency."
@@ -44,6 +51,7 @@ Rules:
 - Always reference the actual resource name (bucket name, user name, security group ID) from the finding.
 - fix_steps must have at least 2 steps, ideally 3-4.
 - cli_command should be a real, runnable AWS CLI command where possible.
+- citations must have at least 2 entries linking to official AWS documentation, NVD CVE pages, CIS benchmark references, or other authoritative security sources that support your remediation advice.
 - Return ONLY the JSON object. No other text whatsoever."""
 
 

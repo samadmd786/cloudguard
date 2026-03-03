@@ -45,6 +45,18 @@ VALID_RESPONSE = {
             "cli_command": "aws s3api get-bucket-acl --bucket my-company-data-backup-prod",
         },
     ],
+    "citations": [
+        {
+            "title": "AWS S3 Block Public Access",
+            "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html",
+            "source": "AWS Documentation",
+        },
+        {
+            "title": "CIS AWS Foundations Benchmark — Control 2.1.5",
+            "url": "https://www.cisecurity.org/benchmark/amazon_web_services",
+            "source": "CIS Benchmark",
+        },
+    ],
     "compliance_frameworks": ["CIS AWS 2.3", "PCI DSS 1.3.6", "NIST AC-3"],
     "priority": "Immediate",
     "tldr": "Your S3 bucket is publicly readable — fix it now.",
@@ -73,7 +85,7 @@ class TestAnalyzeFindingUnit:
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         required = ["plain_english", "why_it_matters", "business_impact",
-                    "fix_steps", "compliance_frameworks", "priority", "tldr"]
+                    "fix_steps", "citations", "compliance_frameworks", "priority", "tldr"]
         for field in required:
             assert field in result, f"Missing field: {field}"
 
@@ -115,6 +127,27 @@ class TestAnalyzeFindingUnit:
 
         assert "plain_english" in result
         assert "error" not in result
+
+    def test_citations_field_present(self):
+        """Result must include a citations array."""
+        finding = load_finding("s3_public.json")
+        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+            result = analyze_finding(finding, api_key="sk-ant-fake-key")
+
+        assert "citations" in result
+        assert isinstance(result["citations"], list)
+        assert len(result["citations"]) >= 1
+
+    def test_citations_have_required_keys(self):
+        """Each citation must have title, url, and source keys."""
+        finding = load_finding("s3_public.json")
+        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+            result = analyze_finding(finding, api_key="sk-ant-fake-key")
+
+        for cite in result["citations"]:
+            assert "title" in cite, "Citation missing 'title'"
+            assert "url" in cite, "Citation missing 'url'"
+            assert "source" in cite, "Citation missing 'source'"
 
     def test_missing_api_key_raises_valueerror(self):
         """No API key in env and none passed → ValueError."""
