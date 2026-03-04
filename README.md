@@ -137,12 +137,3 @@ To deploy your own:
 | Tests | pytest + pytest-mock |
 
 ---
-
-## Roadmap
-
-- [ ] Batch analyze all live findings in one click
-- [ ] Scheduler — auto-poll Security Hub every 60 min
-- [ ] Slack/email webhook on new CRITICAL findings  
-- [ ] Multi-region scan support
-- [ ] Docker / docker-compose setup
-- [ ] GitHub Actions CI scan workflow

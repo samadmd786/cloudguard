@@ -446,6 +446,16 @@ with st.sidebar:
     if preview_mode:
         st.caption("Preview active — no API calls will be made.")
 
+    from dotenv import dotenv_values as _dv
+    _dot_sidebar = _dv(".env")
+    if _dot_sidebar.get("AWS_ACCESS_KEY_ID") and _dot_sidebar.get("AWS_SECRET_ACCESS_KEY"):
+        use_env_creds = st.toggle(
+            "🔑 Use AWS creds from .env",
+            value=st.session_state.get("_use_env_creds", False),
+            help="Load AWS credentials from your local .env file."
+        )
+        st.session_state["_use_env_creds"] = use_env_creds
+
     # Activity log — shows last 5 events regardless of success or error
     activity = st.session_state.get("activity", [])
     if activity:
@@ -584,38 +594,35 @@ with tab1:
 with tab2:
     st.markdown('<div class="section-header">Live AWS Security Hub</div>', unsafe_allow_html=True)
 
-    # Pre-check credentials from session state and .env (for preview mode)
-    # so the expander knows whether to collapse before rendering
-    from dotenv import dotenv_values as _dv
-    _dot = _dv(".env") if preview_mode else {}
-    _has_creds = (
-        bool(st.session_state.get("aws_connected"))
-        or bool(_dot.get("AWS_ACCESS_KEY_ID"))
-    )
+    # Resolve AWS credentials — toggle in sidebar or manual entry
+    _use_env = st.session_state.get("_use_env_creds", False)
+    _dot = _dv(".env") if _use_env else {}
 
-    # AWS credentials expander — auto-collapses once creds are available
-    with st.expander("☁️ AWS Credentials", expanded=not _has_creds):
-        st.caption("Enter your own AWS credentials. These are never stored or logged.")
-        st.text_input("Access Key ID", placeholder="AKIA...", type="password", key="aws_key_id")
-        st.text_input("Secret Access Key", placeholder="...", type="password", key="aws_secret_key")
-        st.text_input("Region", value=st.session_state.get("aws_region_val", "us-east-1"), key="aws_region_val")
-        if st.session_state.get("aws_key_id") and st.session_state.get("aws_secret_key"):
-            st.success("AWS credentials set ✓")
+    if _use_env and _dot.get("AWS_ACCESS_KEY_ID"):
+        # Use .env credentials directly — skip manual input widgets
+        aws_key = _dot.get("AWS_ACCESS_KEY_ID", "")
+        aws_secret = _dot.get("AWS_SECRET_ACCESS_KEY", "")
+        aws_region = _dot.get("AWS_DEFAULT_REGION", "us-east-1")
+        st.success("🔑 Using AWS credentials from .env")
+    else:
+        _has_creds = (
+            bool(st.session_state.get("aws_connected"))
+            or bool(st.session_state.get("aws_key_id"))
+        )
 
-    aws_key = st.session_state.get("aws_key_id", "")
-    aws_secret = st.session_state.get("aws_secret_key", "")
-    aws_region = st.session_state.get("aws_region_val", "us-east-1")
+        # AWS credentials expander — always expanded when .env toggle is off
+        with st.expander("☁️ AWS Credentials", expanded=True):
+            st.caption("Enter your own AWS credentials. These are never stored or logged.")
+            st.text_input("Access Key ID", placeholder="AKIA...", type="password", key="aws_key_id")
+            st.text_input("Secret Access Key", placeholder="...", type="password", key="aws_secret_key")
+            st.text_input("Region", value=st.session_state.get("aws_region_val", "us-east-1"), key="aws_region_val")
 
-    # In preview mode, fill from .env if sidebar is empty
-    if preview_mode:
-        if not aws_key:
-            aws_key = _dot.get("AWS_ACCESS_KEY_ID", "")
-        if not aws_secret:
-            aws_secret = _dot.get("AWS_SECRET_ACCESS_KEY", "")
-        if not aws_region or aws_region == "us-east-1":
-            aws_region = _dot.get("AWS_DEFAULT_REGION", "us-east-1")
-        if aws_key:
-            st.caption("🔑 Using AWS credentials from .env file")
+            if st.session_state.get("aws_key_id") and st.session_state.get("aws_secret_key"):
+                st.success("AWS credentials set ✓")
+
+        aws_key = st.session_state.get("aws_key_id", "")
+        aws_secret = st.session_state.get("aws_secret_key", "")
+        aws_region = st.session_state.get("aws_region_val", "us-east-1")
 
 
     if not aws_key or not aws_secret:
