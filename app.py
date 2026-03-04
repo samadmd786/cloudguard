@@ -438,13 +438,6 @@ with st.sidebar:
     st.markdown("<br>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    preview_mode = st.toggle(
-        "⚡ UI Preview Mode",
-        value=False,
-        help="Loads a mock result instantly — no API call. Great for UI iteration."
-    )
-    if preview_mode:
-        st.caption("Preview active — no API calls will be made.")
 
     from dotenv import dotenv_values as _dv
     _dot_sidebar = _dv(".env")
@@ -547,8 +540,7 @@ with tab1:
         with right:
             st.markdown('<div class="section-header">Analysis</div>', unsafe_allow_html=True)
 
-            mode_prefix = "preview" if preview_mode else "live"
-            cache_key = f"{mode_prefix}_{finding_source}_{finding.get('Id','')}"
+            cache_key = f"live_{finding_source}_{finding.get('Id','')}"
 
             if cache_key in st.session_state:
                 render_analysis(finding, st.session_state[cache_key])
@@ -557,13 +549,7 @@ with tab1:
                 analyze_clicked = st.button("🔍 Analyze Finding", type="primary", use_container_width=True)
 
                 if analyze_clicked:
-                    if preview_mode:
-                        with open("tests/mock_response.json") as f:
-                            result = json.load(f)
-                        add_activity(f"Preview: {finding.get('Title','Finding')[:50]}")
-                        st.session_state[cache_key] = result
-                        st.rerun()
-                    elif not sidebar_key:
+                    if not sidebar_key:
                         st.error("No API key found. Set ANTHROPIC_API_KEY or enter in the sidebar.")
                     else:
                         if check_rate_limit():
