@@ -535,7 +535,7 @@ with tab1:
 
         with left:
             st.markdown('<div class="section-header">Raw Finding</div>', unsafe_allow_html=True)
-            st.json(finding, expanded=False)
+            st.json(finding, expanded=True)
 
         with right:
             st.markdown('<div class="section-header">Analysis</div>', unsafe_allow_html=True)
