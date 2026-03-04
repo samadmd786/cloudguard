@@ -18,7 +18,7 @@ CloudGuard AI transforms raw Security Hub findings into plain-English risk repor
 - Rate limited (5 analyses/hour per session)
 
 ### MVP 2 — Live AWS Integration
-- Connect to your AWS account via sidebar credentials
+- Connect to your AWS account — enter credentials manually or toggle **🔑 Use AWS creds from .env** in the sidebar
 - Live pull from **Security Hub** with severity filtering and pagination
 - **Agent mode** for HIGH/CRITICAL findings: chains CVE lookup (with NVD URLs), AWS docs, and compliance checks via Claude tool-use
 - Smart resource labeling — hides generic account-level ARNs, shows only meaningful resource names
