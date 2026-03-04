@@ -439,16 +439,6 @@ with st.sidebar:
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    from dotenv import dotenv_values as _dv
-    _dot_sidebar = _dv(".env")
-    if _dot_sidebar.get("AWS_ACCESS_KEY_ID") and _dot_sidebar.get("AWS_SECRET_ACCESS_KEY"):
-        use_env_creds = st.toggle(
-            "🔑 Use AWS creds from .env",
-            value=st.session_state.get("_use_env_creds", False),
-            help="Load AWS credentials from your local .env file."
-        )
-        st.session_state["_use_env_creds"] = use_env_creds
-
     # Activity log — shows last 5 events regardless of success or error
     activity = st.session_state.get("activity", [])
     if activity:
@@ -580,9 +570,22 @@ with tab1:
 with tab2:
     st.markdown('<div class="section-header">Live AWS Security Hub</div>', unsafe_allow_html=True)
 
-    # Resolve AWS credentials — toggle in sidebar or manual entry
-    _use_env = st.session_state.get("_use_env_creds", False)
-    _dot = _dv(".env") if _use_env else {}
+    # Resolve AWS credentials — .env toggle or manual entry
+    from dotenv import dotenv_values as _dv
+    _dot = _dv(".env")
+    _has_env_creds = bool(_dot.get("AWS_ACCESS_KEY_ID") and _dot.get("AWS_SECRET_ACCESS_KEY"))
+
+    if _has_env_creds:
+        use_env_creds = st.toggle(
+            "🔑 Use AWS credentials from .env",
+            value=st.session_state.get("_use_env_creds", False),
+            help="Load AWS credentials from your local .env file."
+        )
+        st.session_state["_use_env_creds"] = use_env_creds
+    else:
+        use_env_creds = False
+
+    _use_env = use_env_creds
 
     if _use_env and _dot.get("AWS_ACCESS_KEY_ID"):
         # Use .env credentials directly — skip manual input widgets
