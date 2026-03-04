@@ -34,7 +34,7 @@ st.set_page_config(
     page_title="CloudGuard AI",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown("""
@@ -419,36 +419,9 @@ def render_analysis(finding: dict, result: dict):
 
 
 
-with st.sidebar:
-    st.markdown('<div class="sidebar-logo">🛡️ CloudGuard AI</div>', unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
+# Load API key from environment / .env
+sidebar_key = get_api_key()
 
-    env_key = get_api_key()
-    if env_key:
-        st.success("API key loaded ✓")
-        sidebar_key = env_key
-    else:
-        sidebar_key = st.text_input(
-            "Anthropic API Key",
-            type="password",
-            placeholder="sk-ant-...",
-            help="Set ANTHROPIC_API_KEY in your environment to skip this."
-        )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # Activity log — shows last 5 events regardless of success or error
-    activity = st.session_state.get("activity", [])
-    if activity:
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander("📋 Recent Activity", expanded=True):
-            for entry in reversed(activity[-5:]):
-                st.caption(f"{entry['icon']} {entry['time']} — {entry['message']}")
-            if st.button("Clear", key="clear_activity"):
-                st.session_state["activity"] = []
-                st.rerun()
 
 
 st.markdown("""
