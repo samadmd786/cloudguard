@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-from analyzer import analyze_finding, SYSTEM_PROMPT
+from cloudguard.analyzer import analyze_finding, SYSTEM_PROMPT
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ class TestAnalyzeFindingUnit:
     def test_returns_all_required_fields(self):
         """Happy path: valid finding + mocked Claude response returns all fields."""
         finding = load_finding("s3_public.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         required = ["plain_english", "why_it_matters", "business_impact",
@@ -92,7 +92,7 @@ class TestAnalyzeFindingUnit:
     def test_fix_steps_have_step_and_cli(self):
         """Each fix step must have 'step' and 'cli_command' keys."""
         finding = load_finding("ssh_open.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         for step in result["fix_steps"]:
@@ -102,7 +102,7 @@ class TestAnalyzeFindingUnit:
     def test_priority_is_valid_value(self):
         """Priority must be one of the three allowed values."""
         finding = load_finding("root_keys.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         assert result["priority"] in ("Immediate", "Soon", "Planned")
@@ -110,7 +110,7 @@ class TestAnalyzeFindingUnit:
     def test_business_impact_has_three_keys(self):
         """business_impact must contain data_risk, financial_risk, compliance_risk."""
         finding = load_finding("mfa_disabled.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         impact = result["business_impact"]
@@ -122,7 +122,7 @@ class TestAnalyzeFindingUnit:
         """Claude sometimes wraps JSON in ```json ... ``` — must be stripped."""
         fenced = f"```json\n{json.dumps(VALID_RESPONSE)}\n```"
         finding = load_finding("cloudtrail.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(fenced)):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client(fenced)):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         assert "plain_english" in result
@@ -131,7 +131,7 @@ class TestAnalyzeFindingUnit:
     def test_citations_field_present(self):
         """Result must include a citations array."""
         finding = load_finding("s3_public.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         assert "citations" in result
@@ -141,7 +141,7 @@ class TestAnalyzeFindingUnit:
     def test_citations_have_required_keys(self):
         """Each citation must have title, url, and source keys."""
         finding = load_finding("s3_public.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client(json.dumps(VALID_RESPONSE))):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         for cite in result["citations"]:
@@ -160,7 +160,7 @@ class TestAnalyzeFindingUnit:
     def test_invalid_json_from_claude_returns_error(self):
         """If Claude returns garbage text, result has 'error' key not a crash."""
         finding = load_finding("s3_public.json")
-        with patch("analyzer.anthropic.Anthropic", return_value=make_mock_client("not valid json at all")):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=make_mock_client("not valid json at all")):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         assert "error" in result
@@ -174,7 +174,7 @@ class TestAnalyzeFindingUnit:
         mock_client.messages.create.side_effect = anthropic_lib.AuthenticationError(
             message="Invalid API key", response=MagicMock(status_code=401), body={}
         )
-        with patch("analyzer.anthropic.Anthropic", return_value=mock_client):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=mock_client):
             result = analyze_finding(finding, api_key="sk-ant-bad-key")
 
         assert "error" in result
@@ -188,7 +188,7 @@ class TestAnalyzeFindingUnit:
         mock_client.messages.create.side_effect = anthropic_lib.RateLimitError(
             message="Rate limit", response=MagicMock(status_code=429), body={}
         )
-        with patch("analyzer.anthropic.Anthropic", return_value=mock_client):
+        with patch("cloudguard.analyzer.anthropic.Anthropic", return_value=mock_client):
             result = analyze_finding(finding, api_key="sk-ant-fake-key")
 
         assert "error" in result

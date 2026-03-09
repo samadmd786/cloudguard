@@ -1,5 +1,5 @@
 import pytest
-from exporter import to_markdown
+from cloudguard.exporter import to_markdown
 import json
 
 def test_to_markdown_success():

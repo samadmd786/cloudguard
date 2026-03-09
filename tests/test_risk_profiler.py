@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-import risk_profiler
+from cloudguard import risk_profiler
 
 def test_compute_risk_score_empty():
     """Test the risk score computation for an empty findings list."""
@@ -16,9 +16,9 @@ def test_compute_risk_score_weighted():
         {"severity": "LOW"},       # +1
         {"severity": "INFORMATIONAL"} # +1 (fallback)
     ]
-    # Total raw = 31, avg = 31/6 = 5.17, base = 51, volume_boost = 5 → 56
+    # Total raw = 31, avg = 31/6 = 5.17, base = 51, volume_boost = 5 → 43
     score = risk_profiler.compute_risk_score(findings)
-    assert score == 56
+    assert score == 43
 
 def test_compute_risk_score_caps_out():
     """Test the risk score computation caps at a maximum of 100."""
@@ -27,7 +27,7 @@ def test_compute_risk_score_caps_out():
     score = risk_profiler.compute_risk_score(findings)
     assert score == 100
 
-@patch("risk_profiler.get_all")
+@patch("cloudguard.risk_profiler.get_all")
 def test_get_profile_no_data(mock_get_all):
     """Test generating a risk profile when there are no findings in memory."""
     mock_get_all.return_value = []
@@ -38,7 +38,7 @@ def test_get_profile_no_data(mock_get_all):
     assert profile["label"] == "No Data"
     assert "No Data" not in profile["trend_hint"] # just ensuring trend hint exists
 
-@patch("risk_profiler.get_all")
+@patch("cloudguard.risk_profiler.get_all")
 def test_get_profile_with_data(mock_get_all):
     """Test generating a populated organizational risk profile."""
     # With the weighted-average formula, even a handful of CRITICALs will

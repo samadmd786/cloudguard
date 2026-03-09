@@ -7,9 +7,9 @@ running the analysis. This allows the model to identify recurring patterns
 and tailor remediation steps based on the organization's history.
 """
 import json
-from analyzer import analyze_finding, SYSTEM_PROMPT
-from memory_store import retrieve_similar, store
-from logger import get_logger
+from cloudguard.analyzer import analyze_finding, SYSTEM_PROMPT
+from cloudguard.memory_store import retrieve_similar, store
+from cloudguard.logger import get_logger
 
 log = get_logger(__name__)
 
@@ -79,7 +79,7 @@ def analyze_with_rag(finding: dict, api_key: str = None) -> dict:
     # Run analysis with enriched prompt
     import json as _json
     import anthropic
-    from config import get_secret
+    from cloudguard.config import get_secret
 
     key = api_key or get_secret("ANTHROPIC_API_KEY")
     if not key:

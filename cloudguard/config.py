@@ -11,7 +11,7 @@ os.environ or st.secrets directly.
 """
 import os
 from dotenv import load_dotenv
-from logger import get_logger
+from cloudguard.logger import get_logger
 
 log = get_logger(__name__)
 

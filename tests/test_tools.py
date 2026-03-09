@@ -1,5 +1,5 @@
 import pytest
-from tools import lookup_cves, fetch_aws_remediation, check_compliance, execute_tool
+from cloudguard.tools import lookup_cves, fetch_aws_remediation, check_compliance, execute_tool
 
 def test_check_compliance_known_service():
     """Test compliance lookup for a known service (s3)."""

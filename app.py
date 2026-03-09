@@ -10,14 +10,14 @@ import os
 import json
 from datetime import datetime
 import streamlit as st
-from config import get_secret
-from analyzer import analyze_finding
-from agent_analyzer import analyze_with_agent
-from aws_connector import verify_aws_connection, get_findings, get_summary
-from rag_analyzer import analyze_with_rag
-from risk_profiler import get_profile
-from memory_store import count as memory_count
-from logger import get_logger
+from cloudguard.config import get_secret
+from cloudguard.analyzer import analyze_finding
+from cloudguard.agent_analyzer import analyze_with_agent
+from cloudguard.aws_connector import verify_aws_connection, get_findings, get_summary
+from cloudguard.rag_analyzer import analyze_with_rag
+from cloudguard.risk_profiler import get_profile
+from cloudguard.memory_store import count as memory_count
+from cloudguard.logger import get_logger
 
 
 log = get_logger(__name__)
@@ -387,7 +387,7 @@ def render_analysis(finding: dict, result: dict, key_suffix: str = ""):
 
     # Export buttons
     st.markdown('<div class="section-header">Export report</div>', unsafe_allow_html=True)
-    from exporter import to_markdown
+    from cloudguard.exporter import to_markdown
     import hashlib
     _eid = hashlib.md5(finding.get("Id", finding.get("Title", "report")).encode()).hexdigest()[:8]
     _slug = finding.get("Title", "report")[:30].replace(" ", "_").lower()
@@ -666,7 +666,7 @@ else:
                                 st.error(f"Analysis failed: {msg}")
                             else:
                                 add_activity(f"Analyzed: {finding.get('Title','Finding')[:50]}")
-                                from memory_store import store as mem_store
+                                from cloudguard.memory_store import store as mem_store
                                 mem_store(finding, result)
                                 st.session_state[cache_key] = result
                                 st.rerun()
@@ -846,7 +846,7 @@ else:
                                         st.error(result["error"])
                                     else:
                                         add_activity(f"{'Agent' if use_agent else 'Analyzed'}: {title[:40]}")
-                                        from memory_store import store as mem_store
+                                        from cloudguard.memory_store import store as mem_store
                                         mem_store(f, result)
                                         st.session_state[cache_key] = result
                                         st.rerun()
@@ -919,7 +919,7 @@ else:
                     """, unsafe_allow_html=True)
 
             # Finding history with RAG re-analysis
-            from memory_store import get_all as get_all_findings
+            from cloudguard.memory_store import get_all as get_all_findings
             st.markdown('<div class="section-header">Finding History</div>', unsafe_allow_html=True)
             all_findings_meta = get_all_findings(limit=100)
 

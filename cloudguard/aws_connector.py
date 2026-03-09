@@ -6,7 +6,7 @@ credentials, fetch active findings, and aggregate security summaries.
 """
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
-from logger import get_logger
+from cloudguard.logger import get_logger
 
 log = get_logger(__name__)
 

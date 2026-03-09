@@ -8,8 +8,8 @@ severity breakdown, top recurring issues, and trend direction for the
 """
 import json
 from datetime import datetime, timezone
-from memory_store import get_all
-from logger import get_logger
+from cloudguard.memory_store import get_all
+from cloudguard.logger import get_logger
 
 log = get_logger(__name__)
 

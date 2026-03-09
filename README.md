@@ -37,16 +37,18 @@ CloudGuard AI transforms raw Security Hub findings into plain-English risk repor
 ```
 cloudguard/
 ├── app.py                 # Main Streamlit app (Home + 3 tabs)
-├── analyzer.py            # Core Claude API call → structured JSON with citations
-├── agent_analyzer.py      # Claude tool-use loop for HIGH/CRITICAL
-├── aws_connector.py       # boto3 Security Hub client
-├── tools.py               # Agent tools: CVE lookup (NVD), AWS docs, compliance
-├── rag_analyzer.py        # RAG-enhanced analysis using past findings
-├── memory_store.py        # JSON vector store (sentence-transformers)
-├── risk_profiler.py       # Org risk score (weighted-average) + trend analysis
-├── config.py              # Centralized secret loader (.env → st.secrets)
-├── exporter.py            # Markdown report generation with citations
-├── logger.py              # Rotating file + console logger
+├── cloudguard/            # Core backend package
+│   ├── __init__.py        # Package initialization
+│   ├── analyzer.py        # Core Claude API call → structured JSON with citations
+│   ├── agent_analyzer.py  # Claude tool-use loop for HIGH/CRITICAL
+│   ├── aws_connector.py   # boto3 Security Hub client
+│   ├── tools.py           # Agent tools: CVE lookup (NVD), AWS docs, compliance
+│   ├── rag_analyzer.py    # RAG-enhanced analysis using past findings
+│   ├── memory_store.py    # JSON vector store (sentence-transformers)
+│   ├── risk_profiler.py   # Org risk score (weighted-average) + trend analysis
+│   ├── config.py          # Centralized secret loader (.env → st.secrets)
+│   ├── exporter.py        # Markdown report generation with citations
+│   └── logger.py          # Rotating file + console logger
 ├── run.sh                 # Launch script (uses venv)
 ├── sample_findings/       # 5 real-world Security Hub finding JSONs
 ├── mvp1/                  # Earlier standalone version (see mvp1/README.md)

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch
 import json
-import rag_analyzer
+from cloudguard import rag_analyzer
 
 def test_build_context_empty():
     """Test building context when no similar findings are found."""
@@ -18,8 +18,8 @@ def test_build_context_with_results():
     assert "1. [CRITICAL] S3 Public (priority: Immediate, similarity: 0.95)" in context
     assert "2. [HIGH] IAM Key (priority: Soon, similarity: 0.82)" in context
 
-@patch("rag_analyzer.retrieve_similar")
-@patch("rag_analyzer.store")
+@patch("cloudguard.rag_analyzer.retrieve_similar")
+@patch("cloudguard.rag_analyzer.store")
 @patch("anthropic.Anthropic")
 def test_analyze_with_rag_success(mock_anthropic, mock_store, mock_retrieve, monkeypatch):
     """Test the full RAG pipeline successfully calls Claude and stores the result."""
@@ -51,7 +51,7 @@ def test_analyze_with_rag_success(mock_anthropic, mock_store, mock_retrieve, mon
     # Asserts memory store was called to save the new analysis
     mock_store.assert_called_once_with(finding, result)
 
-@patch("rag_analyzer.retrieve_similar")
+@patch("cloudguard.rag_analyzer.retrieve_similar")
 @patch("anthropic.Anthropic")
 def test_analyze_with_rag_invalid_json(mock_anthropic, mock_retrieve, monkeypatch):
     """Test the RAG pipeline handles invalid JSON from Claude gracefully without crashing."""

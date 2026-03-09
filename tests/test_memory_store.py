@@ -2,20 +2,20 @@ import pytest
 from unittest.mock import patch
 import json
 import os
-import memory_store
+from cloudguard import memory_store
 
 @pytest.fixture
 def mock_store(tmp_path):
     """Fixture to mock the storage file to a temp directory."""
     temp_file = tmp_path / "findings.json"
-    with patch("memory_store.STORE_FILE", str(temp_file)):
-        with patch("memory_store.STORE_DIR", str(tmp_path)):
+    with patch("cloudguard.memory_store.STORE_FILE", str(temp_file)):
+        with patch("cloudguard.memory_store.STORE_DIR", str(tmp_path)):
             yield str(temp_file)
 
 @pytest.fixture
 def mock_embedding():
     """Fixture to mock the sentence-transformer embedding model."""
-    with patch("memory_store._get_model") as mock_model_func:
+    with patch("cloudguard.memory_store._get_model") as mock_model_func:
         mock_model = mock_model_func.return_value
         # Return a deterministic [0.1, 0.2] list as the fake embedding
         mock_model.encode.return_value.tolist.return_value = [0.1, 0.2]

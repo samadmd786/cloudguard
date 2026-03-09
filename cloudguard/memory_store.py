@@ -13,7 +13,7 @@ import os
 import math
 from datetime import datetime, timezone
 
-from logger import get_logger
+from cloudguard.logger import get_logger
 
 log = get_logger(__name__)
 

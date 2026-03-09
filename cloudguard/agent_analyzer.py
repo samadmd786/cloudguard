@@ -6,12 +6,12 @@ capabilities. For HIGH and CRITICAL findings, the agent will autonomously query
 external APIs (via the `tools.py` module) to fetch CVE details, AWS documentation,
 and compliance mappings before finalizing its structured JSON analysis.
 """
-from config import get_secret
+from cloudguard.config import get_secret
 import json
 import anthropic
-from tools import TOOL_SCHEMAS, execute_tool
-from analyzer import SYSTEM_PROMPT, analyze_finding
-from logger import get_logger
+from cloudguard.tools import TOOL_SCHEMAS, execute_tool
+from cloudguard.analyzer import SYSTEM_PROMPT, analyze_finding
+from cloudguard.logger import get_logger
 
 log = get_logger(__name__)
 

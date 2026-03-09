@@ -8,7 +8,7 @@ detailing the risk, business impact, and specific remediation steps.
 """
 import json
 import anthropic
-from logger import get_logger
+from cloudguard.logger import get_logger
 
 log = get_logger(__name__)
 
@@ -70,7 +70,7 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
         dict: The structured analysis parsed from Claude's JSON response, or
               a dictionary containing an 'error' key if the API call fails.
     """
-    from config import get_secret
+    from cloudguard.config import get_secret
     key = api_key or get_secret("ANTHROPIC_API_KEY")
     if not key:
         log.error("ANTHROPIC_API_KEY not set")
