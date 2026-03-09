@@ -310,7 +310,7 @@ def severity_badge(label: str) -> str:
 def priority_span(p: str) -> str:
     return f'<span class="priority-{p}">⚡ {p}</span>'
 
-def render_analysis(finding: dict, result: dict):
+def render_analysis(finding: dict, result: dict, key_suffix: str = ""):
     """
     Render the structured analysis result onto the Streamlit UI.
 
@@ -399,7 +399,7 @@ def render_analysis(finding: dict, result: dict):
         file_name=f"cloudguard_{_slug}.md",
         mime="text/markdown",
         use_container_width=True,
-        key=f"dl_md_{_eid}",
+        key=f"dl_md_{_eid}{key_suffix}",
     )
 
 
@@ -642,7 +642,7 @@ else:
                 cache_key = f"live_{finding_source}_{finding.get('Id','')}"
 
                 if cache_key in st.session_state:
-                    render_analysis(finding, st.session_state[cache_key])
+                    render_analysis(finding, st.session_state[cache_key], key_suffix=f"_man_{cache_key}")
                     st.caption("⚡ Cached — no API call")
                 else:
                     # Auto-trigger from paste tab button, or show a button for other input methods
@@ -826,7 +826,7 @@ else:
                         cache_key = f"live_{fid}"
 
                         if cache_key in st.session_state:
-                            render_analysis(f, st.session_state[cache_key])
+                            render_analysis(f, st.session_state[cache_key], key_suffix=f"_live_{idx}")
                             st.caption("⚡ Cached")
                         else:
                             use_agent = sev in ("CRITICAL", "HIGH")
@@ -944,7 +944,7 @@ else:
 
                         rag_key = f"rag_history_{idx}"
                         if rag_key in st.session_state:
-                            render_analysis({}, st.session_state[rag_key])
+                            render_analysis({"Title": title, "Severity": {"Label": sev}}, st.session_state[rag_key], key_suffix=f"_rag_{idx}")
                         elif sidebar_key:
                             if st.button("🧠 Re-analyze with RAG", key=f"rag_btn_{idx}"):
                                 try:
