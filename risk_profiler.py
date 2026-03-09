@@ -85,7 +85,7 @@ def get_profile() -> dict:
         if sev in breakdown:
             breakdown[sev] += 1
         title = f.get("title", "Unknown")
-        title_counts[title] = title_counts.get(title, 0) + 1
+        title_counts[title] = title_counts.get(title, 0) + f.get("analysis_count", 1)
 
     score = compute_risk_score(findings)
 

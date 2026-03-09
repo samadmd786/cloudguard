@@ -111,11 +111,17 @@ def store(finding: dict, analysis: dict) -> str:
         }
 
         records = _load_store()
-        # Upsert — replace existing record with same ID
+        # Upsert — replace existing record with same ID, but carry over analysis count
+        prev_count = 0
+        for r in records:
+            if r.get("id") == doc_id:
+                prev_count = r.get("analysis_count", 1)
+                break
         records = [r for r in records if r.get("id") != doc_id]
+        record["analysis_count"] = prev_count + 1
         records.append(record)
         _save_store(records)
-        log.info(f"Stored finding | id={doc_id} severity={record['severity']}")
+        log.info(f"Stored finding | id={doc_id} severity={record['severity']} count={record['analysis_count']}")
         return doc_id
 
     except Exception as e:
