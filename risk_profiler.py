@@ -23,8 +23,8 @@ def compute_risk_score(findings: list[dict]) -> int:
 
     Uses a weighted-average approach scaled by a confidence factor so that
     a handful of findings doesn't produce a misleadingly extreme score.
-    Confidence grows with the number of findings (reaches ~90 % at 10
-    findings and ~100 % at 20+).
+    Confidence = 1 - 1/(1 + total*0.5), which reaches ~0.71 at 5 findings,
+    ~0.83 at 10, and ~0.91 at 20+.
 
     Args:
         findings (list[dict]): A list of finding dictionaries retrieved from memory.
@@ -40,7 +40,7 @@ def compute_risk_score(findings: list[dict]) -> int:
     # Average severity weight (0-10) normalised to 0-100
     base_score = (raw / total / 10) * 100
 
-    # Confidence ramps up with sample size: 1 finding ≈ 0.39, 5 ≈ 0.78, 10 ≈ 0.91
+    # Confidence ramps up with sample size: 1 ≈ 0.33, 5 ≈ 0.71, 10 ≈ 0.83, 20 ≈ 0.91
     confidence = 1 - (1 / (1 + total * 0.5))
 
     # More unresolved findings = slightly higher risk, capped at +15
