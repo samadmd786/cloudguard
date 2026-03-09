@@ -6,7 +6,7 @@ capabilities. For HIGH and CRITICAL findings, the agent will autonomously query
 external APIs (via the `tools.py` module) to fetch CVE details, AWS documentation,
 and compliance mappings before finalizing its structured JSON analysis.
 """
-import os
+from config import get_secret
 import json
 import anthropic
 from tools import TOOL_SCHEMAS, execute_tool
@@ -62,7 +62,7 @@ def analyze_with_agent(finding: dict, api_key: str = None, max_tool_rounds: int 
         log.info(f"Severity {sev} — using simple analysis | id={finding_id}")
         return analyze_finding(finding, api_key=api_key)
 
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    key = api_key or get_secret("ANTHROPIC_API_KEY")
     if not key:
         raise ValueError("ANTHROPIC_API_KEY not set.")
 

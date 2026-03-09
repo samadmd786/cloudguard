@@ -77,11 +77,11 @@ def analyze_with_rag(finding: dict, api_key: str = None) -> dict:
     rag_system_prompt = SYSTEM_PROMPT + RAG_PREAMBLE.format(context=context)
 
     # Run analysis with enriched prompt
-    import os
     import json as _json
     import anthropic
+    from config import get_secret
 
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    key = api_key or get_secret("ANTHROPIC_API_KEY")
     if not key:
         raise ValueError("ANTHROPIC_API_KEY not set.")
 

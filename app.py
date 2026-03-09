@@ -10,7 +10,7 @@ import os
 import json
 from datetime import datetime
 import streamlit as st
-from dotenv import load_dotenv
+from config import get_secret
 from analyzer import analyze_finding
 from agent_analyzer import analyze_with_agent
 from aws_connector import verify_aws_connection, get_findings, get_summary
@@ -19,14 +19,6 @@ from risk_profiler import get_profile
 from memory_store import count as memory_count
 from logger import get_logger
 
-load_dotenv(override=False)  # os.environ always wins over .env
-
-# Strip .env placeholder values so they don't block real credentials
-_PLACEHOLDER_MARKERS = ("your-", "your_", "<", "example", "changeme", "replace")
-for _var in ("ANTHROPIC_API_KEY", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"):
-    _val = os.environ.get(_var, "")
-    if any(_val.lower().startswith(m) for m in _PLACEHOLDER_MARKERS):
-        os.environ.pop(_var, None)
 
 log = get_logger(__name__)
 
@@ -244,18 +236,12 @@ SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 
 def get_api_key() -> str:
     """
-    Retrieve the Anthropic API key from the environment or Streamlit secrets.
+    Retrieve the Anthropic API key via the centralized config loader.
 
     Returns:
         str: The API key, or an empty string if not found.
     """
-    key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not key:
-        try:
-            key = st.secrets.get("ANTHROPIC_API_KEY", "")
-        except Exception:
-            pass
-    return key
+    return get_secret("ANTHROPIC_API_KEY")
 
 def add_activity(message: str, level: str = "info"):
     """
@@ -437,6 +423,7 @@ tab1, tab2, tab3 = st.tabs(["💾 Manual Input", "☁️ Live AWS Findings", "�
 with tab1:
     finding = None
     finding_source = None
+    paste_analyze = False
 
     input_method = st.radio(
         "Input method",
@@ -476,6 +463,7 @@ with tab1:
             height=280,
             placeholder='{ "SchemaVersion": "2018-10-08", ... }',
         )
+        paste_analyze = st.button("🔍 Analyse Finding", type="primary", use_container_width=True, key="paste_analyze_btn")
         if pasted.strip():
             try:
                 finding = json.loads(pasted)
@@ -509,7 +497,11 @@ with tab1:
                 render_analysis(finding, st.session_state[cache_key])
                 st.caption("⚡ Cached — no API call")
             else:
-                analyze_clicked = st.button("🔍 Analyze Finding", type="primary", use_container_width=True)
+                # Auto-trigger from paste tab button, or show a button for other input methods
+                analyze_clicked = (
+                    (input_method == "📋 Paste JSON" and paste_analyze)
+                    or st.button("🔍 Analyze Finding", type="primary", use_container_width=True)
+                )
 
                 if analyze_clicked:
                     if not sidebar_key:
@@ -544,15 +536,13 @@ with tab2:
     st.markdown('<div class="section-header">Live AWS Security Hub</div>', unsafe_allow_html=True)
 
     # Resolve AWS credentials — .env toggle or manual entry
-    from dotenv import dotenv_values as _dv
-    _dot = _dv(".env")
-    _has_env_creds = bool(_dot.get("AWS_ACCESS_KEY_ID") and _dot.get("AWS_SECRET_ACCESS_KEY"))
+    _has_env_creds = bool(get_secret("AWS_ACCESS_KEY_ID") and get_secret("AWS_SECRET_ACCESS_KEY"))
 
     if _has_env_creds:
         use_env_creds = st.toggle(
-            "🔑 Use AWS credentials from .env",
-            value=st.session_state.get("_use_env_creds", False),
-            help="Load AWS credentials from your local .env file."
+            "🔑 Use configured AWS credentials",
+            value=st.session_state.get("_use_env_creds", True),
+            help="Load AWS credentials from .env file or Streamlit secrets."
         )
         st.session_state["_use_env_creds"] = use_env_creds
     else:
@@ -560,12 +550,12 @@ with tab2:
 
     _use_env = use_env_creds
 
-    if _use_env and _dot.get("AWS_ACCESS_KEY_ID"):
-        # Use .env credentials directly — skip manual input widgets
-        aws_key = _dot.get("AWS_ACCESS_KEY_ID", "")
-        aws_secret = _dot.get("AWS_SECRET_ACCESS_KEY", "")
-        aws_region = _dot.get("AWS_DEFAULT_REGION", "us-east-1")
-        st.success("🔑 Using AWS credentials from .env")
+    if _use_env and get_secret("AWS_ACCESS_KEY_ID"):
+        # Use .env / st.secrets credentials — skip manual input widgets
+        aws_key = get_secret("AWS_ACCESS_KEY_ID")
+        aws_secret = get_secret("AWS_SECRET_ACCESS_KEY")
+        aws_region = get_secret("AWS_DEFAULT_REGION", "us-east-1")
+        st.success("🔑 Using AWS credentials from .env / secrets")
     else:
         _has_creds = (
             bool(st.session_state.get("aws_connected"))
@@ -735,10 +725,10 @@ with tab3:
         score = profile["score"]
         label = profile["label"]
         st.markdown(f"""
-        <div style="background:linear-gradient(135deg,#0d1b40,#0a1628);
-                    border:1px solid rgba(99,179,255,0.2);border-radius:16px;
+        <div style="background:linear-gradient(135deg,#1a2744,#162038);
+                    border:1px solid rgba(99,179,255,0.3);border-radius:16px;
                     padding:28px 36px;margin-bottom:20px;text-align:center;">
-          <div style="font-size:0.75rem;text-transform:uppercase;letter-spacing:0.1em;color:#4a6fa5;margin-bottom:8px;">
+          <div style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.12em;color:#93b4e0;margin-bottom:8px;font-weight:600;">
             Org Risk Score
           </div>
           <div style="font-size:4rem;font-weight:800;
@@ -746,8 +736,8 @@ with tab3:
                       -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
             {score}
           </div>
-          <div style="font-size:1.1rem;font-weight:600;color:#e2e8f0;margin-top:4px;">{label}</div>
-          <div style="font-size:0.85rem;color:#64748b;margin-top:8px;">{mem_count} findings in memory</div>
+          <div style="font-size:1.1rem;font-weight:600;color:#f1f5f9;margin-top:4px;">{label}</div>
+          <div style="font-size:0.88rem;color:#94a3b8;margin-top:8px;">{mem_count} findings in memory</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -799,8 +789,10 @@ with tab3:
                             st.markdown(f"**TL;DR:** {past_result.get('tldr','—')}")
                             st.markdown(f"**Priority:** {past_result.get('priority','—')}")
                             st.markdown(f"**Plain English:** {past_result.get('plain_english','—')}")
+                        else:
+                            st.caption("No analysis stored for this finding.")
                     except Exception:
-                        st.caption("Analysis not available.")
+                        st.caption("⚠️ Stored analysis was truncated. Re-analyse this finding to fix.")
 
                     rag_key = f"rag_history_{idx}"
                     if rag_key in st.session_state:

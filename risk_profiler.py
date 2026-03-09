@@ -19,12 +19,12 @@ SEV_WEIGHT = {"CRITICAL": 10, "HIGH": 6, "MEDIUM": 3, "LOW": 1}
 
 def compute_risk_score(findings: list[dict]) -> int:
     """
-    Calculate an aggregate risk score (0-100) based on average severity.
+    Calculate an aggregate risk score (0-100) based on severity and sample size.
 
-    Uses a weighted-average approach: the base score reflects the average
-    severity of all findings (all-CRITICAL = 100, all-LOW = 10). A small
-    volume boost (+1 per extra finding, capped at +20) ensures that having
-    more unresolved findings pushes the score higher.
+    Uses a weighted-average approach scaled by a confidence factor so that
+    a handful of findings doesn't produce a misleadingly extreme score.
+    Confidence grows with the number of findings (reaches ~90 % at 10
+    findings and ~100 % at 20+).
 
     Args:
         findings (list[dict]): A list of finding dictionaries retrieved from memory.
@@ -38,12 +38,15 @@ def compute_risk_score(findings: list[dict]) -> int:
     raw = sum(SEV_WEIGHT.get(f.get("severity", "LOW"), 1) for f in findings)
 
     # Average severity weight (0-10) normalised to 0-100
-    base_score = int((raw / total / 10) * 100)
+    base_score = (raw / total / 10) * 100
 
-    # More unresolved findings = slightly higher risk, capped at +20
-    volume_boost = min(total - 1, 20)
+    # Confidence ramps up with sample size: 1 finding ≈ 0.39, 5 ≈ 0.78, 10 ≈ 0.91
+    confidence = 1 - (1 / (1 + total * 0.5))
 
-    return min(100, base_score + volume_boost)
+    # More unresolved findings = slightly higher risk, capped at +15
+    volume_boost = min(total - 1, 15)
+
+    return min(100, int(base_score * confidence + volume_boost))
 
 
 def get_profile() -> dict:
@@ -94,6 +97,10 @@ def get_profile() -> dict:
         label = "🟡 Moderate Risk"
     else:
         label = "🟢 Low Risk"
+
+    # Flag low confidence when sample size is small
+    if total < 5:
+        label += f"  ·  ⚠️ Low confidence ({total} finding{'s' if total != 1 else ''})"
 
     # Top 5 recurring issues
     top_issues = sorted(title_counts.items(), key=lambda x: x[1], reverse=True)[:5]

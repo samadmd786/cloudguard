@@ -106,7 +106,7 @@ def store(finding: dict, analysis: dict) -> str:
             "priority": analysis.get("priority", ""),
             "service": (finding.get("Resources") or [{}])[0].get("Type", "")[:128],
             "stored_at": datetime.now(timezone.utc).isoformat(),
-            "analysis_json": json.dumps(analysis)[:2048],
+            "analysis_json": json.dumps(analysis),
             "embedding": embedding,
         }
 

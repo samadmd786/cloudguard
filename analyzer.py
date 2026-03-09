@@ -6,7 +6,6 @@ AWS Security Hub finding (JSON) and sends it to the Anthropic Claude API using
 a zero-shot prompt. It forces Claude to return a structured JSON response
 detailing the risk, business impact, and specific remediation steps.
 """
-import os
 import json
 import anthropic
 from logger import get_logger
@@ -71,7 +70,8 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
         dict: The structured analysis parsed from Claude's JSON response, or
               a dictionary containing an 'error' key if the API call fails.
     """
-    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    from config import get_secret
+    key = api_key or get_secret("ANTHROPIC_API_KEY")
     if not key:
         log.error("ANTHROPIC_API_KEY not set")
         raise ValueError(
