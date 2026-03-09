@@ -946,7 +946,7 @@ else:
                         if rag_key in st.session_state:
                             render_analysis({"Title": title, "Severity": {"Label": sev}}, st.session_state[rag_key], key_suffix=f"_rag_{idx}")
                         elif sidebar_key:
-                            if st.button("🧠 Re-analyze with RAG", key=f"rag_btn_{idx}"):
+                            if st.button("Re-analyze with RAG", key=f"rag_btn_{idx}"):
                                 try:
                                     finding_stub = {"Title": title, "Severity": {"Label": sev}}
                                     with st.spinner("Running RAG analysis..."):
