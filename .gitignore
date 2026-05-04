@@ -13,3 +13,6 @@ result.json
 
 .coverage
 Demo.webm
+
+# Streamlit
+.streamlit/secrets.toml
