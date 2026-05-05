@@ -44,8 +44,8 @@ def _build_context(similar: list[dict]) -> str:
     lines = []
     for i, item in enumerate(similar, 1):
         lines.append(
-            f"{i}. [{item['severity']}] {item['title']} "
-            f"(priority: {item['priority']}, similarity: {item['similarity']})"
+            f"{i}. [{item.get('severity', '<unknown>')}] {item.get('title', '<untitled>')} "
+            f"(priority: {item.get('priority', 'N/A')}, similarity: {item.get('similarity', 0.0)})"
         )
     return "\n".join(lines)
 
