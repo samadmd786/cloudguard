@@ -53,9 +53,15 @@ def get_secret(name: str, default: str = "") -> str:
     try:
         import streamlit as st
         val = st.secrets.get(name, "")
-        if val and not _is_placeholder(val):
-            return val
-    except Exception:
+        if val:
+            if isinstance(val, str):
+                if not _is_placeholder(val):
+                    return val
+            else:
+                log.warning(f"Secret '{name}' is not a string (type: {type(val)}). Skipping placeholder check.")
+                return val
+    except (ImportError, KeyError, AttributeError, TypeError):
         pass
-
+    except Exception as e:
+        log.warning(f"Unexpected error reading Streamlit secret '{name}': {e}")
     return default
