@@ -107,7 +107,8 @@ def get_profile() -> dict:
 
     # Simple trend hint based on recency of CRITICAL findings
     recent_critical = sum(
-        1 for f in findings[-20:] if f.get("severity") == "CRITICAL"
+        1 for f in sorted(findings, key=lambda f: f.get("stored_at", ""))[-20:]
+        if f.get("severity") == "CRITICAL"
     )
     if recent_critical >= 3:
         trend_hint = f"⚠️ {recent_critical} CRITICAL findings in the last 20 records — risk is increasing."
