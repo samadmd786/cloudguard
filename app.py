@@ -236,12 +236,12 @@ SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
 
 def get_api_key() -> str:
     """
-    Retrieve the Anthropic API key via the centralized config loader.
+    Retrieve the NVIDIA API key via the centralized config loader.
 
     Returns:
         str: The API key, or an empty string if not found.
     """
-    return get_secret("ANTHROPIC_API_KEY")
+    return get_secret("GROQ_API_KEY")
 
 def add_activity(message: str, level: str = "info"):
     """
@@ -653,7 +653,7 @@ else:
 
                     if analyze_clicked:
                         if not sidebar_key:
-                            st.error("No API key found. Set ANTHROPIC_API_KEY or enter in the sidebar.")
+                            st.error("No API key found. Set GROQ_API_KEY or enter in the sidebar.")
                         else:
                             if check_rate_limit():
                                 st.stop()

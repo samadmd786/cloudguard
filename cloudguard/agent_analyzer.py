@@ -1,17 +1,19 @@
 """
 Agentic Security Analyzer.
 
-This module implements a multi-turn ReAct-style agent using Claude's tool-use
-capabilities. For HIGH and CRITICAL findings, the agent will autonomously query
-external APIs (via the `tools.py` module) to fetch CVE details, AWS documentation,
-and compliance mappings before finalizing its structured JSON analysis.
+This module implements an enriched analysis pipeline for HIGH and CRITICAL
+AWS Security Hub findings. It pre-fetches CVE data, AWS documentation, and
+compliance mappings using the local tool functions, then injects the results
+as context into a single NVIDIA NIM (Gemma 4) call — achieving the same
+enrichment as a tool-calling agent without requiring function-calling support
+from the model.
 """
 from cloudguard.config import get_secret
 import json
-import anthropic
-from cloudguard.tools import TOOL_SCHEMAS, execute_tool
-from cloudguard.analyzer import SYSTEM_PROMPT, analyze_finding
+from cloudguard.tools import lookup_cves, fetch_aws_remediation, check_compliance
+from cloudguard.analyzer import SYSTEM_PROMPT, analyze_finding, _extract_json
 from cloudguard.logger import get_logger
+from cloudguard.nvidia_client import nvidia_chat
 
 log = get_logger(__name__)
 
@@ -20,110 +22,150 @@ AGENT_SEVERITIES = {"CRITICAL", "HIGH"}
 
 AGENT_SYSTEM_PROMPT = SYSTEM_PROMPT + """
 
-You also have access to three tools:
-- lookup_cves: search for known CVEs related to this misconfiguration
-- fetch_aws_remediation: get the official AWS remediation documentation URL
-- check_compliance: get specific compliance control IDs (CIS, PCI DSS, SOC 2, NIST, ISO 27001)
+You have been provided with pre-fetched enrichment data below. Use it to:
+- Populate the "citations" array with NVD CVE URLs and AWS documentation URLs
+- Fill "compliance_frameworks" with the exact control IDs listed
+- Incorporate CVE descriptions into your "why_it_matters" and "plain_english" fields
 
-For CRITICAL and HIGH severity findings, you MUST call all three tools before producing your final JSON response.
-For MEDIUM and LOW severity findings, only call check_compliance.
+Do NOT repeat the raw enrichment data verbatim — synthesize it into the structured JSON fields.
+Return ONLY the JSON object. No other text whatsoever."""
 
-After gathering tool results, produce the same structured JSON output as before.
-Do NOT include tool results as raw JSON in your response — synthesize them into the structured fields.
-IMPORTANT: Populate the "citations" array using URLs from tool results — include NVD CVE page URLs from lookup_cves, AWS documentation URLs from fetch_aws_remediation, and any other authoritative sources."""
+
+def _build_enrichment_context(finding: dict) -> str:
+    """
+    Pre-fetch CVE, AWS docs, and compliance data for a finding and format as context.
+
+    Args:
+        finding (dict): The raw AWS Security Hub finding.
+
+    Returns:
+        str: A formatted string of enrichment data to inject into the prompt.
+    """
+    # Derive service and misconfiguration type from the finding
+    types = finding.get("Types", ["Software and Configuration Checks"])
+    finding_type = types[0] if types else "misconfiguration"
+    title = finding.get("Title", "")
+    resources = finding.get("Resources", [{}])
+    resource_type = resources[0].get("Type", "AWS::IAM") if resources else "AWS::IAM"
+    service = resource_type.split("::")[-1] if "::" in resource_type else "IAM"
+
+    sections = []
+
+    try:
+        cve_data = lookup_cves(finding_type, service)
+        cves = cve_data.get("cves", [])
+        if cves:
+            lines = [f"CVE Search Results for '{service} {finding_type}':"]
+            for c in cves:
+                lines.append(
+                    f"  - {c['id']} (CVSS {c.get('cvss_score', 'N/A')}): "
+                    f"{c['description'][:200]}  [URL: {c['nvd_url']}]"
+                )
+            sections.append("\n".join(lines))
+        else:
+            sections.append(f"CVE Search: No specific CVEs found for {service} {finding_type}.")
+    except Exception as e:
+        log.warning(f"CVE lookup failed: {e}")
+        sections.append("CVE Search: Unavailable.")
+
+    try:
+        # Guess control ID from finding title (e.g. "S3.2", "IAM.4")
+        control_id = f"{service}.1"
+        for word in title.split():
+            if "." in word and word.split(".")[0].isalpha():
+                control_id = word
+                break
+        docs = fetch_aws_remediation(control_id)
+        sections.append(
+            f"AWS Remediation Docs for {control_id}: {docs.get('url', 'N/A')}"
+        )
+    except Exception as e:
+        log.warning(f"AWS docs lookup failed: {e}")
+        sections.append("AWS Docs: Unavailable.")
+
+    try:
+        compliance = check_compliance(finding_type, service)
+        controls = compliance.get("controls", [])
+        lines = ["Compliance Controls:"]
+        for c in controls:
+            lines.append(f"  - {c['framework']} {c['control_id']}")
+        sections.append("\n".join(lines))
+    except Exception as e:
+        log.warning(f"Compliance lookup failed: {e}")
+        sections.append("Compliance: Unavailable.")
+
+    return "\n\n".join(sections)
 
 
 def analyze_with_agent(finding: dict, api_key: str = None, max_tool_rounds: int = 5) -> dict:
     """
-    Run an autonomous agent loop to enrich the analysis of a Security Hub finding.
+    Run an enriched analysis of a Security Hub finding using NVIDIA NIM.
 
-    The model is provided with a set of tools (e.g., `lookup_cves`, `check_compliance`).
-    If the finding severity is HIGH or CRITICAL, the agent loop executes, allowing Claude
-    to call tools and receive their output until it decides it has enough information to
-    generate the final JSON response.
-
-    If the finding is LOW or MEDIUM severity, it falls back to the standard, non-agentic
-    `analyze_finding` behavior to save time and API costs.
+    For HIGH and CRITICAL findings, tool results (CVEs, AWS docs, compliance
+    mappings) are pre-fetched locally and injected as prompt context before
+    calling the model. For LOW/MEDIUM findings, falls back to the standard
+    `analyze_finding` path.
 
     Args:
         finding (dict): The raw AWS Security Hub finding dictionary.
-        api_key (str, optional): Anthropic API key.
-        max_tool_rounds (int, optional): Maximum number of tool-call iterations before
-            forcing the agent to stop and return an error. Defaults to 5.
+        api_key (str, optional): NVIDIA API key.
+        max_tool_rounds (int, optional): Unused — kept for API compatibility.
 
     Returns:
-        dict: The structured analysis parsed from Claude's JSON response, or an error payload.
+        dict: The structured analysis parsed from the model's JSON response,
+              or an error payload.
     """
     sev = finding.get("Severity", {}).get("Label", "LOW")
     finding_id = finding.get("Id", "unknown")
 
-    # Only run full agent for HIGH/CRITICAL
+    # Only run full enriched analysis for HIGH/CRITICAL
     if sev not in AGENT_SEVERITIES:
         log.info(f"Severity {sev} — using simple analysis | id={finding_id}")
         return analyze_finding(finding, api_key=api_key)
 
-    key = api_key or get_secret("ANTHROPIC_API_KEY")
+    key = api_key or get_secret("GROQ_API_KEY")
     if not key:
-        raise ValueError("ANTHROPIC_API_KEY not set.")
+        raise ValueError("GROQ_API_KEY not set.")
 
-    client = anthropic.Anthropic(api_key=key)
-    finding_json = json.dumps(finding, indent=2)
     log.info(f"Agent analysis started | id={finding_id} severity={sev}")
 
-    messages = [
-        {
-            "role": "user",
-            "content": f"Analyze this AWS Security Hub finding:\n\n{finding_json}",
-        }
-    ]
+    # Pre-fetch enrichment data locally
+    enrichment = _build_enrichment_context(finding)
+    log.info(f"Enrichment context built | id={finding_id}")
 
-    for round_num in range(max_tool_rounds):
-        response = client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=2500,
-            system=AGENT_SYSTEM_PROMPT,
-            tools=TOOL_SCHEMAS,
-            messages=messages,
+    finding_json = json.dumps(finding, indent=2)
+
+    enriched_prompt = (
+        f"ENRICHMENT DATA (use to populate citations and compliance fields):\n"
+        f"{enrichment}\n\n"
+        f"---\n\n"
+        f"Analyze this AWS Security Hub finding:\n\n{finding_json}"
+    )
+
+    try:
+        raw = nvidia_chat(
+            messages=[{"role": "user", "content": enriched_prompt}],
+            api_key=key,
+            system_prompt=AGENT_SYSTEM_PROMPT,
+            max_tokens=4096,
         )
 
-        log.info(f"Agent round {round_num + 1} stop_reason={response.stop_reason} | id={finding_id}")
+        raw = _extract_json(raw)
+        result = json.loads(raw)
+        log.info(f"Agent analysis complete | id={finding_id} priority={result.get('priority')}")
+        return result
 
-        if response.stop_reason == "end_turn":
-            # Claude is done — extract the final JSON text response
-            for block in response.content:
-                if hasattr(block, "text"):
-                    raw = block.text.strip()
-                    if raw.startswith("```"):
-                        raw = raw.split("```")[1]
-                        if raw.startswith("json"):
-                            raw = raw[4:]
-                        raw = raw.strip()
-                    try:
-                        result = json.loads(raw)
-                        log.info(f"Agent analysis complete | id={finding_id} priority={result.get('priority')}")
-                        return result
-                    except json.JSONDecodeError as e:
-                        log.error(f"Agent returned invalid JSON | id={finding_id} error={e}")
-                        return {"error": f"Agent returned invalid JSON: {e}", "raw_response": raw}
-            return {"error": "Agent returned no text content"}
-
-        if response.stop_reason == "tool_use":
-            # Append Claude's response with tool calls to messages
-            messages.append({"role": "assistant", "content": response.content})
-
-            # Execute each requested tool and collect results
-            tool_results = []
-            for block in response.content:
-                if block.type == "tool_use":
-                    log.info(f"Agent calling tool={block.name} inputs={block.input} | id={finding_id}")
-                    result_str = execute_tool(block.name, block.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result_str,
-                    })
-
-            messages.append({"role": "user", "content": tool_results})
-
-    log.error(f"Agent exceeded max_tool_rounds={max_tool_rounds} | id={finding_id}")
-    return {"error": f"Agent did not finish within {max_tool_rounds} tool rounds."}
+    except json.JSONDecodeError as e:
+        log.error(f"Agent returned invalid JSON | id={finding_id} error={e}")
+        return {"error": f"Agent returned invalid JSON: {e}", "raw_response": raw}
+    except RuntimeError as e:
+        err = str(e)
+        if "401" in err or "403" in err:
+            return {"error": "Invalid NVIDIA API key. Check your GROQ_API_KEY."}
+        if "429" in err:
+            return {"error": "Rate limit hit. Wait 60 seconds and try again."}
+        log.error(f"API error | id={finding_id} error={e}")
+        return {"error": f"API error: {err}"}
+    except Exception as e:
+        log.error(f"Unexpected error | id={finding_id} error={e}")
+        return {"error": f"Unexpected error: {str(e)}"}

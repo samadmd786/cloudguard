@@ -19,7 +19,7 @@ log = get_logger(__name__)
 load_dotenv(override=False)
 
 # Placeholder prefixes that should be treated as "not set"
-_PLACEHOLDER_MARKERS = ("your-", "your_", "<", "example", "changeme", "replace", "sk-ant-your")
+_PLACEHOLDER_MARKERS = ("your-", "your_", "<", "example", "changeme", "replace", "gsk_your", "nvapi-your")
 
 
 def _is_placeholder(value: str) -> bool:
