@@ -213,4 +213,8 @@ def count() -> int:
     Returns:
         int: The integer count of stored findings.
     """
-    return len(_load_store())
+    try:
+        return len(_load_store())
+    except Exception as e:
+        log.error(f"Failed to count findings: {e}")
+        return 0

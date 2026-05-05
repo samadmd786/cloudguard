@@ -4,12 +4,15 @@ Centralized logging configuration for CloudGuard AI.
 Usage in any module:
     from logger import get_logger
     log = get_logger(__name__)
-    log.info("Analysis started", finding_id="abc123", severity="HIGH")
+    log.info("Analysis started | finding_id=abc123 severity=HIGH")
 """
 import logging
 import os
 import sys
+import threading
 from logging.handlers import RotatingFileHandler
+
+LOGGER_LOCK = threading.Lock()
 
 LOG_DIR = "logs"
 LOG_FILE = os.path.join(LOG_DIR, "cloudguard.log")
@@ -24,28 +27,32 @@ def get_logger(name: str) -> logging.Logger:
     if logger.handlers:
         return logger
 
-    logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+    with LOGGER_LOCK:
+        if logger.handlers:
+            return logger
 
-    fmt = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+        logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
 
-    # Console handler — always works
-    console = logging.StreamHandler(sys.stdout)
-    console.setFormatter(fmt)
-    logger.addHandler(console)
-
-    # Rotating file handler — optional, skipped if filesystem is read-only (e.g. Streamlit Cloud)
-    try:
-        os.makedirs(LOG_DIR, exist_ok=True)
-        file_handler = RotatingFileHandler(
-            LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3
+        fmt = logging.Formatter(
+            fmt="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
-        file_handler.setFormatter(fmt)
-        logger.addHandler(file_handler)
-    except OSError:
-        logger.debug("Log file unavailable — console logging only")
+
+        # Console handler — always works
+        console = logging.StreamHandler(sys.stdout)
+        console.setFormatter(fmt)
+        logger.addHandler(console)
+
+        # Rotating file handler — optional, skipped if filesystem is read-only (e.g. Streamlit Cloud)
+        try:
+            os.makedirs(LOG_DIR, exist_ok=True)
+            file_handler = RotatingFileHandler(
+                LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3
+            )
+            file_handler.setFormatter(fmt)
+            logger.addHandler(file_handler)
+        except OSError:
+            logger.debug("Log file unavailable — console logging only")
 
     return logger
 

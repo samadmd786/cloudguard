@@ -2,8 +2,7 @@
 Report exporter for CloudGuard AI.
 Generates Markdown analysis reports from a finding + analysis dict.
 """
-import io
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def to_markdown(finding: dict, result: dict) -> str:
@@ -21,7 +20,7 @@ def to_markdown(finding: dict, result: dict) -> str:
     Returns:
         str: The complete, formatted Markdown report as a string.
     """
-    now = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     title = finding.get("Title", "Unknown Finding")
     sev = finding.get("Severity", {}).get("Label", "UNKNOWN")
     resource = (finding.get("Resources") or [{}])[0].get("Id", "—")

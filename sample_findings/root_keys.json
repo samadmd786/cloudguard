@@ -15,7 +15,7 @@
         "Original": "CRITICAL"
     },
     "Title": "IAM.4 IAM root user access key should not exist",
-    "Description": "This control checks whether the root user access key is present. The root account is the most privileged user in an AWS account. AWS access keys provide programmatic access to a given account. It is recommended that root account access keys are not exist so that you can limit vectors by which the account may be compromised.",
+    "Description": "This control checks whether root user access keys do not exist. The root account is the most privileged user in an AWS account. AWS access keys provide programmatic access to a given account. It is recommended that root account access keys do not exist so that you can limit vectors by which the account may be compromised.",
     "Resources": [
         {
             "Type": "AwsAccount",

@@ -94,7 +94,7 @@ def lookup_cves(misconfiguration_type: str, service: str) -> dict:
             metrics = cve.get("metrics", {})
             score = None
             for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
-                if key in metrics:
+                if key in metrics and isinstance(metrics[key], list) and len(metrics[key]) > 0 and "cvssData" in metrics[key][0]:
                     score = metrics[key][0]["cvssData"].get("baseScore")
                     break
             cve_id = cve.get("id", "")
@@ -126,7 +126,9 @@ def fetch_aws_remediation(control_id: str) -> dict:
               and whether it was fetched "live" or from the local "cache".
     """
     service = control_id.split(".")[0] if "." in control_id else control_id
-    url = CONTROL_DOCS.get(service, CONTROL_DOCS.get("IAM"))
+    if service not in CONTROL_DOCS:
+        raise ValueError(f"Unrecognized service '{service}' for control '{control_id}'")
+    url = CONTROL_DOCS[service]
 
     if url in _docs_cache:
         log.info(f"Docs cache hit for {control_id}")
@@ -227,11 +229,23 @@ def execute_tool(name: str, inputs: dict) -> str:
     """
     import json
     if name == "lookup_cves":
-        result = lookup_cves(inputs["misconfiguration_type"], inputs["service"])
+        if "misconfiguration_type" not in inputs or "service" not in inputs:
+            result = {"error": "missing required argument: misconfiguration_type or service"}
+        else:
+            result = lookup_cves(inputs["misconfiguration_type"], inputs["service"])
     elif name == "fetch_aws_remediation":
-        result = fetch_aws_remediation(inputs["control_id"])
+        if "control_id" not in inputs:
+            result = {"error": "missing required argument: control_id"}
+        else:
+            try:
+                result = fetch_aws_remediation(inputs["control_id"])
+            except Exception as e:
+                result = {"error": str(e)}
     elif name == "check_compliance":
-        result = check_compliance(inputs["finding_type"], inputs["service"])
+        if "finding_type" not in inputs or "service" not in inputs:
+            result = {"error": "missing required argument: finding_type or service"}
+        else:
+            result = check_compliance(inputs["finding_type"], inputs["service"])
     else:
         result = {"error": f"Unknown tool: {name}"}
     return json.dumps(result)

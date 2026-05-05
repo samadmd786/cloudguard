@@ -105,7 +105,7 @@ def analyze_with_rag(finding: dict, api_key: str = None) -> dict:
 
     except json.JSONDecodeError as e:
         log.error(f"RAG JSON parse error | id={finding_id}: {e}")
-        return {"error": f"JSON parse error: {e}"}
+        return {"error": f"JSON parse error: {e}", "priority": None, "severity": None, "rag_context_count": 0}
     except Exception as e:
         log.error(f"RAG analysis error | id={finding_id}: {e}")
-        return {"error": str(e)}
+        return {"error": str(e), "priority": None, "severity": None, "rag_context_count": 0}

@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch
 from cloudguard import risk_profiler
 
@@ -16,14 +15,14 @@ def test_compute_risk_score_weighted():
         {"severity": "LOW"},       # +1
         {"severity": "INFORMATIONAL"} # +1 (fallback)
     ]
-    # Total raw = 31, avg = 31/6 = 5.17, base = 51, volume_boost = 5 → 43
+    # Total raw = 31, avg_weight = 31/6=5.16, base = 51.66, conf = 0.75, base*conf = 38.75, volume_boost = 5 → 43
     score = risk_profiler.compute_risk_score(findings)
     assert score == 43
 
 def test_compute_risk_score_caps_out():
     """Test the risk score computation caps at a maximum of 100."""
     findings = [{"severity": "CRITICAL"} for _ in range(100)]
-    # avg = 10/10 = 1.0, base = 100, volume_boost = 20 → capped at 100
+    # avg = (100 * 10) / 100 = 10, base = 100, volume_boost = 15 → capped at 100
     score = risk_profiler.compute_risk_score(findings)
     assert score == 100
 

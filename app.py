@@ -300,9 +300,13 @@ def list_samples() -> list[str]:
     if not os.path.isdir(SAMPLE_DIR):
         return []
     files = [f for f in os.listdir(SAMPLE_DIR) if f.endswith(".json")]
-    return sorted(files, key=lambda f: SEVERITY_ORDER.get(
-        json.load(open(f"{SAMPLE_DIR}/{f}")).get("Severity", {}).get("Label", "LOW"), 99
-    ))
+    def get_sev(f):
+        try:
+            with open(f"{SAMPLE_DIR}/{f}") as fd:
+                return SEVERITY_ORDER.get(json.load(fd).get("Severity", {}).get("Label", "LOW"), 99)
+        except Exception:
+            return 99
+    return sorted(files, key=get_sev)
 
 def severity_badge(label: str) -> str:
     return f'<span class="badge badge-{label}">{label}</span>'
@@ -326,7 +330,9 @@ def render_analysis(finding: dict, result: dict, key_suffix: str = ""):
     st.markdown(priority_span(result.get("priority", "—")), unsafe_allow_html=True)
 
     # TL;DR
-    st.markdown(f'<div class="tldr-box">💬 <strong>TL;DR</strong><br>{result["tldr"]}</div>',
+    import html
+    tldr = html.escape(result.get("tldr", ""))
+    st.markdown(f'<div class="tldr-box">💬 <strong>TL;DR</strong><br>{tldr}</div>',
                 unsafe_allow_html=True)
 
     # Plain English
@@ -341,23 +347,27 @@ def render_analysis(finding: dict, result: dict, key_suffix: str = ""):
     st.markdown('<div class="section-header">Business impact</div>', unsafe_allow_html=True)
     impact = result.get("business_impact", {})
     c1, c2, c3 = st.columns(3)
+    dr = html.escape(impact.get("data_risk", "—"))
+    fr = html.escape(impact.get("financial_risk", "—"))
+    cr = html.escape(impact.get("compliance_risk", "—"))
     with c1:
         st.markdown(f'''<div class="impact-card">
-            <h4>🗄️ Data Risk</h4><p>{impact.get("data_risk","—")}</p></div>''',
+            <h4>🗄️ Data Risk</h4><p>{dr}</p></div>''',
             unsafe_allow_html=True)
     with c2:
         st.markdown(f'''<div class="impact-card">
-            <h4>💰 Financial Risk</h4><p>{impact.get("financial_risk","—")}</p></div>''',
+            <h4>💰 Financial Risk</h4><p>{fr}</p></div>''',
             unsafe_allow_html=True)
     with c3:
         st.markdown(f'''<div class="impact-card">
-            <h4>📋 Compliance Risk</h4><p>{impact.get("compliance_risk","—")}</p></div>''',
+            <h4>📋 Compliance Risk</h4><p>{cr}</p></div>''',
             unsafe_allow_html=True)
 
     # Fix steps
     st.markdown('<div class="section-header">How to fix it</div>', unsafe_allow_html=True)
     for i, step in enumerate(result.get("fix_steps", []), 1):
-        with st.expander(f"Step {i}: {step['step']}", expanded=True):
+        step_title = step.get("step", "<missing step>")
+        with st.expander(f"Step {i}: {step_title}", expanded=True):
             if step.get("cli_command"):
                 st.code(step["cli_command"], language="bash", wrap_lines=True)
 
@@ -373,10 +383,16 @@ def render_analysis(finding: dict, result: dict, key_suffix: str = ""):
     citations = result.get("citations", [])
     if citations:
         st.markdown('<div class="section-header">Citations & References</div>', unsafe_allow_html=True)
+        import html
+        import urllib.parse
         for cite in citations:
-            title = cite.get("title", "Reference")
+            title = html.escape(cite.get("title", "Reference"))
             url = cite.get("url", "#")
-            source = cite.get("source", "")
+            parsed = urllib.parse.urlparse(url)
+            if parsed.scheme not in ("http", "https"):
+                url = "#"
+            url = html.escape(url)
+            source = html.escape(cite.get("source", ""))
             source_badge = f'<span class="citation-source">{source}</span>' if source else ""
             st.markdown(
                 f'<div class="citation-card">'
@@ -392,7 +408,7 @@ def render_analysis(finding: dict, result: dict, key_suffix: str = ""):
     _eid = hashlib.md5(finding.get("Id", finding.get("Title", "report")).encode()).hexdigest()[:8]
     _slug = finding.get("Title", "report")[:30].replace(" ", "_").lower()
 
-    dcol1, dcol2 = st.columns(2)
+    
     st.download_button(
         "📄 Download Markdown",
         data=to_markdown(finding, result),
@@ -600,9 +616,13 @@ else:
                     format_func=lambda f: labels.get(f, f),
                 )
                 if choice:
-                    with open(f"{SAMPLE_DIR}/{choice}") as fp:
-                        finding = json.load(fp)
-                    finding_source = choice
+                    try:
+                        with open(f"{SAMPLE_DIR}/{choice}") as fp:
+                            finding = json.load(fp)
+                        finding_source = choice
+                    except (FileNotFoundError, PermissionError, json.JSONDecodeError) as e:
+                        st.error(f"Error reading sample file: {e}")
+                        finding = None
 
         # Paste JSON
         elif input_method == "📋 Paste JSON":
@@ -769,15 +789,15 @@ else:
                     st.session_state.pop("live_findings", None)
                     st.session_state.pop("aws_summary", None)
 
-            # Fetch findings
-            if "live_findings" not in st.session_state:
-                with st.spinner("Fetching findings from Security Hub..."):
-                    st.session_state["live_findings"] = get_findings(
-                        aws_key, aws_secret,
-                        severity_filter=sev_filter or None,
-                        max_results=max_results,
-                        region=aws_region,
-                    )
+                # Fetch findings
+                if "live_findings" not in st.session_state:
+                    with st.spinner("Fetching findings from Security Hub..."):
+                        st.session_state["live_findings"] = get_findings(
+                            aws_key, aws_secret,
+                            severity_filter=sev_filter or None,
+                            max_results=max_results,
+                            region=aws_region,
+                        )
                     st.session_state["aws_summary"] = get_summary(st.session_state["live_findings"])
 
             findings = st.session_state.get("live_findings", [])
@@ -904,7 +924,7 @@ else:
             if profile["top_issues"]:
                 st.markdown('<div class="section-header">Top Recurring Issues</div>', unsafe_allow_html=True)
                 for i, issue in enumerate(profile["top_issues"], 1):
-                    bar_pct = min(int((issue["count"] / profile["total"]) * 100), 100)
+                    bar_pct = min(int((issue["count"] / profile["total"]) * 100), 100) if profile["total"] > 0 else 0
                     st.markdown(f"""
                     <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
                       <span style="color:#64748b;width:18px;text-align:right;font-size:0.8rem;">{i}</span>
@@ -947,6 +967,8 @@ else:
                             render_analysis({"Title": title, "Severity": {"Label": sev}}, st.session_state[rag_key], key_suffix=f"_rag_{idx}")
                         elif sidebar_key:
                             if st.button("Re-analyze with RAG", key=f"rag_btn_{idx}"):
+                                if check_rate_limit():
+                                    st.stop()
                                 try:
                                     finding_stub = {"Title": title, "Severity": {"Label": sev}}
                                     with st.spinner("Running RAG analysis..."):

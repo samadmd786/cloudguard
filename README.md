@@ -30,6 +30,12 @@ CloudGuard AI transforms raw Security Hub findings into plain-English risk repor
 - Local vector memory (`sentence-transformers` + cosine similarity) — no cloud vector DB required
 - Every successful analysis auto-stores to memory for future RAG enrichment
 
+### Security & Stability
+- **XSS Protection**: All untrusted outputs from LLMs and AWS are sanitized and HTML-escaped before being rendered in the UI.
+- **Robust Exception Handling**: Comprehensive fallback mechanisms for malformed JSON, file reading permissions, rate limits, and unreachable endpoints.
+- **Thread-safe Logging**: Rotating file logging is safeguarded with thread locks to prevent race conditions during high-concurrency access.
+- **Data Validation**: Strict parsing checks on API inputs, CVE outputs, and array indexing to prevent runtime errors.
+
 ---
 
 ## Architecture

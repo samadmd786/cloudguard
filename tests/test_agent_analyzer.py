@@ -1,5 +1,4 @@
 import pytest
-import json
 from pytest_mock import MockerFixture
 from cloudguard.agent_analyzer import analyze_with_agent
 

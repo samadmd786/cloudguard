@@ -102,6 +102,7 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
     finding_json = json.dumps(finding, indent=2)
 
     try:
+        raw = None
         raw = nvidia_chat(
             messages=[
                 {
@@ -120,8 +121,9 @@ def analyze_finding(finding: dict, api_key: str = None) -> dict:
         return result
 
     except json.JSONDecodeError as e:
+        safe_raw = raw if raw is not None else ""
         log.error(f"JSON parse error | id={finding_id} error={e}")
-        return {"error": f"Model returned invalid JSON: {e}", "raw_response": raw}
+        return {"error": f"Model returned invalid JSON: {e}", "raw_response": safe_raw}
     except RuntimeError as e:
         err = str(e)
         if "401" in err or "403" in err:

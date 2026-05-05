@@ -19,24 +19,22 @@ def test_check_compliance_unknown_service():
     ids = [c["control_id"] for c in res["controls"]]
     assert "1.1" in ids  # Default CIS control
 
-def test_fetch_aws_remediation_known():
+def test_fetch_aws_remediation_known(mocker):
     """Test fetching AWS docs URL for a known Security Hub control prefix."""
+    mock_get = mocker.patch("requests.get")
+    mock_resp = mocker.Mock()
+    mock_resp.raise_for_status.return_value = None
+    mock_get.return_value = mock_resp
+
     res = fetch_aws_remediation("S3.1")
     assert res["control_id"] == "S3.1"
     assert "s3-controls.html" in res["url"]
     assert res.get("error") is None
 
 def test_fetch_aws_remediation_unknown(mocker):
-    """Test fetching AWS docs URL for an unknown prefix caches and returns IAM default."""
-    # Mock requests.get so we don't actually hit the network during unit tests
-    mock_get = mocker.patch("requests.get")
-    mock_resp = mocker.Mock()
-    mock_resp.raise_for_status.return_value = None
-    mock_get.return_value = mock_resp
-
-    res = fetch_aws_remediation("UNKNOWN_SERVICE.1")
-    assert res["control_id"] == "UNKNOWN_SERVICE.1"
-    assert "iam-controls.html" in res["url"]
+    """Test fetching AWS docs URL for an unknown prefix raises ValueError."""
+    with pytest.raises(ValueError, match="Unrecognized service"):
+        fetch_aws_remediation("UNKNOWN_SERVICE.1")
 
 def test_execute_tool_valid():
     """Test the execute_tool dispatcher for a valid tool."""
