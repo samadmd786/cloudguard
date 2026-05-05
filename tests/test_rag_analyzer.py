@@ -3,6 +3,10 @@ from unittest.mock import patch
 import json
 from cloudguard import rag_analyzer
 
+class MockBlock:
+    def __init__(self, text):
+        self.text = text
+
 def test_build_context_empty():
     """Test building context when no similar findings are found."""
     context = rag_analyzer._build_context([])
@@ -35,10 +39,6 @@ def test_analyze_with_rag_success(mock_anthropic, mock_store, mock_retrieve, mon
     mock_client = mock_anthropic.return_value
     mock_response = mock_client.messages.create.return_value
     
-    class MockBlock:
-        def __init__(self, text):
-            self.text = text
-            
     mock_response.content = [MockBlock('{"priority": "Immediate", "tldr": "Fix it."}')]
 
     # Run the function
@@ -63,10 +63,6 @@ def test_analyze_with_rag_invalid_json(mock_anthropic, mock_retrieve, monkeypatc
     mock_client = mock_anthropic.return_value
     mock_response = mock_client.messages.create.return_value
     
-    class MockBlock:
-        def __init__(self, text):
-            self.text = text
-            
     mock_response.content = [MockBlock('{broken_json')]
 
     # Run the function
