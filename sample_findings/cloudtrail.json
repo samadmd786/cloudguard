@@ -18,7 +18,7 @@
     "Description": "This control checks that there is at least one multi-region AWS CloudTrail trail. CloudTrail records API calls for your account and delivers log files to you. Without CloudTrail enabled, you have no audit history of who made what API calls to your AWS environment, making forensic investigation and compliance auditing impossible.",
     "Resources": [
         {
-            "Type": "AwsAccount",
+            "Type": "AwsCloudTrailTrail",
             "Id": "arn:aws:cloudtrail:us-east-1:123456789012:trail/management-events",
             "Partition": "aws",
             "Region": "us-east-1",
