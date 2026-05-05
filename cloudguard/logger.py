@@ -18,7 +18,6 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 def get_logger(name: str) -> logging.Logger:
     """Return a configured logger that writes to both console and rotating log file."""
-    os.makedirs(LOG_DIR, exist_ok=True)
 
     logger = logging.getLogger(name)
 
